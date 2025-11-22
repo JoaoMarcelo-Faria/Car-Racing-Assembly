@@ -470,85 +470,6 @@ CalculaPos:
     ; 3. Uma tecla FOI pressionada (w,a,s,d). Atualiza a 'dir_ladrao'
     store dir_ladrao, r1
     
-; ---------------------------------------------------------------------
-; ResetPosicoesPorNivel
-; Define posições iniciais do ladrão e polícia baseado no nível
-; ---------------------------------------------------------------------
-ResetPosicoesPorNivel:
-    push r0
-    push r1
-    
-    load r0, nivel_atual
-    
-    loadn r1, #1
-    cmp r0, r1
-    jne ResetPos_Level2
-    ; Level 1
-    loadn r0, #490
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #1020
-    store pos_policia, r0
-    store pos_ant_policia, r0
-    jmp ResetPos_Fim
-    
-ResetPos_Level2:
-    loadn r1, #2
-    cmp r0, r1
-    jne ResetPos_Level3
-    ; Level 2 - Ajuste estas posições conforme seu level2
-    loadn r0, #209  ; Exemplo: posição inicial no level2
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #1069  ; Exemplo: posição da polícia
-    store pos_policia, r0
-    store pos_ant_policia, r0
-    jmp ResetPos_Fim
-    
-ResetPos_Level3:
-    loadn r1, #3
-    cmp r0, r1
-    jne ResetPos_Level4
-    ; Level 3
-    loadn r0, #250  ; Ajustar depois
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #950
-    store pos_policia, r0
-    store pos_ant_policia, r0
-    jmp ResetPos_Fim
-    
-ResetPos_Level4:
-    ; Level 4
-    loadn r0, #300
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #900
-    store pos_policia, r0
-    store pos_ant_policia, r0
-    
-ResetPos_Fim:
-    ; Reseta direções
-    loadn r0, #0
-    store dir_ladrao, r0
-    store dir_policia, r0
-    
-    ; Reseta sprites para direita
-    loadn r0, #ladrao_R
-    store ladraoSprite, r0
-    loadn r0, #ladraoGaps_H
-    store ladraoGapsPtr, r0
-    store ladraoGapsPtr_ant, r0
-    
-    loadn r0, #policia_R
-    store policiaSprite, r0
-    loadn r0, #policiaGaps_H
-    store policiaGapsPtr, r0
-    store policiaGapsPtr_ant, r0
-    
-    pop r1
-    pop r0
-    rts
 
 
 MoveComDirAnterior:
@@ -846,7 +767,7 @@ GetMoedasNivelAtual:
     loadn r1, #1
     cmp r0, r1
     jne GetMoedas_Level2
-    load r1, moedas_level1
+    load r1, moedas_lvl1
     store max_pontos, r1
     jmp GetMoedas_Fim
     
@@ -854,7 +775,7 @@ GetMoedas_Level2:
     loadn r1, #2
     cmp r0, r1
     jne GetMoedas_Level3
-    load r1, moedas_level2
+    load r1, moedas_lvl2
     store max_pontos, r1
     jmp GetMoedas_Fim
     
@@ -862,12 +783,12 @@ GetMoedas_Level3:
     loadn r1, #3
     cmp r0, r1
     jne GetMoedas_Level4
-    load r1, moedas_level3
+    load r1, moedas_lvl3
     store max_pontos, r1
     jmp GetMoedas_Fim
     
 GetMoedas_Level4:
-    load r1, moedas_level4
+    load r1, moedas_lvl4
     store max_pontos, r1
     
 GetMoedas_Fim:
@@ -926,8 +847,6 @@ Comer:
     load r5, r8
     storei r5, r7
     
-    
-    
     ; 2. "Apague" da tela (desenhe o espaço vazio)
     outchar r7, r6
     
@@ -943,12 +862,28 @@ Comer:
     load r5, max_pontos
 
     cmp r7, r5
-    jeq Vitoria
+    jeq VitoriaNivel
     
     jmp next_eat_check
     
-
-
+next_eat_check:
+    inc r2
+    cmp r2, r3
+    jne eat_loop
+    
+eat_loop_end:
+    ;r8 = variavel
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+    
+;Funcao de vitoria do nivel
 VitoriaNivel:
     ;Passa para o próximo nível
     ; Incrementa o nível
@@ -986,26 +921,9 @@ ProximoNivel:
     pop r1
     pop r0
     jmp round_game  ; Volta para recarregar o cenário
-    
-next_eat_check:
-    inc r2
-    cmp r2, r3
-    jne eat_loop
-    
-eat_loop_end:
-    ;r8 = variavel
-    pop r7
-    pop r6
-    pop r5
-    pop r4
-    pop r3
-    pop r2
-    pop r1
-    pop r0
-    rts
-    
- 
- ; ---------------------------------------------------------------------
+
+
+; ---------------------------------------------------------------------
 ; --- SEÇÃO DE lógica  DA POLÍCIA 
 ; ---------------------------------------------------------------------
 
@@ -1707,6 +1625,90 @@ PrintStrSai:
     pop r1
     pop r0
     rts
+
+
+; ---------------------------------------------------------------------
+; ResetPosicoesPorNivel
+; Define posições iniciais do ladrão e polícia baseado no nível
+; ---------------------------------------------------------------------
+ResetPosicoesPorNivel:
+    push r0
+    push r1
+    
+    load r0, nivel_atual
+    
+    loadn r1, #1
+    cmp r0, r1
+    jne ResetPos_Level2
+    ; Level 1
+    loadn r0, #490
+    store pos_ladrao, r0
+    store pos_ant_ladrao, r0
+    loadn r0, #1020
+    store pos_policia, r0
+    store pos_ant_policia, r0
+    jmp ResetPos_Fim
+    
+ResetPos_Level2:
+    loadn r1, #2
+    cmp r0, r1
+    jne ResetPos_Level3
+    ; Level 2 - Ajuste estas posições conforme seu level2
+    loadn r0, #209  ; Exemplo: posição inicial no level2
+    store pos_ladrao, r0
+    store pos_ant_ladrao, r0
+    loadn r0, #1069  ; Exemplo: posição da polícia
+    store pos_policia, r0
+    store pos_ant_policia, r0
+    jmp ResetPos_Fim
+    
+ResetPos_Level3:
+    loadn r1, #3
+    cmp r0, r1
+    jne ResetPos_Level4
+    ; Level 3
+    loadn r0, #250  ; Ajustar depois
+    store pos_ladrao, r0
+    store pos_ant_ladrao, r0
+    loadn r0, #950
+    store pos_policia, r0
+    store pos_ant_policia, r0
+    jmp ResetPos_Fim
+    
+ResetPos_Level4:
+    ; Level 4
+    loadn r0, #300
+    store pos_ladrao, r0
+    store pos_ant_ladrao, r0
+    loadn r0, #900
+    store pos_policia, r0
+    store pos_ant_policia, r0
+    
+ResetPos_Fim:
+    ; Reseta direções
+    loadn r0, #0
+    store dir_ladrao, r0
+    store dir_policia, r0
+    
+    ; Reseta sprites para direita
+    loadn r0, #ladrao_R
+    store ladraoSprite, r0
+    loadn r0, #ladraoGaps_H
+    store ladraoGapsPtr, r0
+    store ladraoGapsPtr_ant, r0
+    
+    loadn r0, #policia_R
+    store policiaSprite, r0
+    loadn r0, #policiaGaps_H
+    store policiaGapsPtr, r0
+    store policiaGapsPtr_ant, r0
+    
+    pop r1
+    pop r0
+    rts
+
+
+
 ; Função que inicializa as variaveis do programa
 ; para comecar um jogo
 inicializa_var:
