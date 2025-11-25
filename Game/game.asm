@@ -66,6 +66,7 @@ static fant_comidos + #0, #0
 ;Variaveis de nivel
 nivel_atual: var #1
 static nivel_atual + #0, #1     ;começa no nivel 1
+cen_atual: var #1               ;ponteiro para o cenario atual
 
 ;Moedas por nivel
 moedas_lvl1: var #1
@@ -164,20 +165,21 @@ CarregaLevel2:
     loadn r1, #2
     cmp r0, r1
     jne CarregaLevel3
-    loadn r0, #level2  ; <-- Você precisa ter este label
+    loadn r0, #level2  
     jmp CarregaCenario
     
 CarregaLevel3:
     loadn r1, #3
     cmp r0, r1
     jne CarregaLevel4
-    loadn r0, #level3  ; <-- A ser criado
+    loadn r0, #level3  
     jmp CarregaCenario
     
 CarregaLevel4:
-    loadn r0, #level4  ; <-- A ser criado
+    loadn r0, #level4   
     
 CarregaCenario:
+    store cen_atual, r0
     call printCenario
     
     ; Atualiza max_pontos para o nível atual
@@ -360,9 +362,8 @@ apagarladrao:
   loadn R6, #255
   store tecla_atual, R6
   
-
   
-  loadn R0, #level1
+  call GetCenarioAtual
   load R1, ladraoGapsPtr_ant
   load R2, pos_ant_ladrao
   loadn R3, #6 ;tamanho ladrao
@@ -666,8 +667,11 @@ CheckMoveValido:
     push r5 ; Usado para o ID do tile
     push r6
 
+    call GetCenarioAtual    ; <-- MUDANÇA: chama a função
+    mov r1, r0              ; <-- r1 recebe o endereço do cenário
+    pop r0                  ; <-- recupera a nova_pos da stack
+    push r0                 ; <-- coloca de volta
 
-    loadn r1, #level1      ; Endereço base do cenário
     ;load r2, ladraoGapsPtr    ; Endereço base dos offsets do carrinho
     loadn r3, #6             ; Tamanho do loop (6 tiles)
     loadn r4, #0             ; Incrementador (i = 0)
@@ -814,7 +818,7 @@ CheckEatItems:
     
     load r4, pos_ladrao      ; Posição ATUAL
     load r1, ladraoGapsPtr   ; Gaps ATUAIS
-    loadn r0, #level1
+    call GetCenarioAtual     ; checa o cenario da moeda
     loadn r3, #6
     loadn r2, #0             ; i = 0
     
@@ -1032,7 +1036,7 @@ apagarpolicia:
   push R5
   push R6
   
-  loadn R0, #level1
+  call GetCenarioAtual
   load R1, policiaGapsPtr_ant
   load R2, pos_ant_policia
   loadn R3, #6 ;tamanho
@@ -1455,7 +1459,8 @@ Policia_checkCenario:
     pop r0                   ; Restaura a nova_pos original
 
 
-    loadn r1, #level1 ;Carrega o endereço do mapa
+    call GetCenarioAtual
+    mov r1, r0              ; <-- r1 = endereço do cenário
     add r6, r1, r4 ; R6 = Endereço base + Posição (R4)
     loadi r5,r6 ;R5 = O ID DO TILE 
     
@@ -1653,11 +1658,10 @@ ResetPos_Level2:
     loadn r1, #2
     cmp r0, r1
     jne ResetPos_Level3
-    ; Level 2 - Ajuste estas posições conforme seu level2
-    loadn r0, #209  ; Exemplo: posição inicial no level2
+    loadn r0, #209
     store pos_ladrao, r0
     store pos_ant_ladrao, r0
-    loadn r0, #1069  ; Exemplo: posição da polícia
+    loadn r0, #1069
     store pos_policia, r0
     store pos_ant_policia, r0
     jmp ResetPos_Fim
@@ -1707,6 +1711,10 @@ ResetPos_Fim:
     pop r0
     rts
 
+; Retorna em R0 o endereço do cenário do nível atual
+GetCenarioAtual:
+    load r0, cen_atual
+    rts
 
 
 ; Função que inicializa as variaveis do programa
@@ -1717,6 +1725,9 @@ inicializa_var:
     push r2
     push r3
     push r4
+
+    loadn r0, #level1
+    store nivel_atual, r0
 
     loadn r0, #255
     store tecla_atual, r0
