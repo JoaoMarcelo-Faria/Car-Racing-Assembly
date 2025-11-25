@@ -102,17 +102,17 @@ min_moedas_lvl4: var #1
 static min_moedas_lvl4 + #0, #13 ; Ex: Precisa de 13 das 22
 
 ; String para avisar que pode sair
-str_saida: string "PARA SAIR PRESSIONE ENTER"
+str_saida: string "SAIDA LIBERADA - PRESSIONE ENTER"
 
 ;Moedas por nivel
 moedas_lvl1: var #1
-static moedas_lvl1 + #0, #11    ;tem 5 moedas no nivel 1
+static moedas_lvl1 + #0, #12     ;tem 5 moedas no nivel 1
 
 moedas_lvl2: var #1
-static moedas_lvl2 + #0, #13    ;tem 4 moedas no nivel 2
+static moedas_lvl2 + #0, #13     ;tem 4 moedas no nivel 2
 
 moedas_lvl3: var #1
-static moedas_lvl3 + #0, #18      ;tem 6 moedas no nivel 3
+static moedas_lvl3 + #0, #18       ;tem 6 moedas no nivel 3
 
 moedas_lvl4: var #1
 static moedas_lvl4 + #0, #22
@@ -251,57 +251,56 @@ CarregaCenario:
 
     main_inicio:    
 
-            call delay        
-                inc r0
-                loadn r1, #15
-                mod r1, r0, r1
-            jnz main_inicio
-            ; quick input check to react faster to ENTER/SPACE when exit is liberated
-            load r0, saida_liberada
-            loadn r1, #1
-            cmp r0, r1
-            jne skip_quick_input
-            call WaitForEnter
-            load r0, tecla_atual
-            loadn r1, #13
-            cmp r0, r1
-            jeq VitoriaNivel
-            loadn r1, #32
-            cmp r0, r1
-            jeq VitoriaNivel
-    skip_quick_input:
-            
-            call CalculaPos
-            call CheckPlayerPoliceCollision
-            skip_player:
-              inc r2
-              loadn r1, #5
-              mod r1, r2, r1
-            jnz skip_police
-            
-            
-            ; Move a Polícia
-          call CalculaPosPolicia
-          
-          ; 3. Checa se eles colidiram
-          call CheckPlayerPoliceCollision ; 
-          skip_police:
-
-            ; --- CHECA SE JOGADOR APERTOU ENTER/SPACE PARA AVANCAR ---
-            load r0, saida_liberada
-            loadn r1, #1
-            cmp r0, r1
-            jne skip_check_enter
-            load r0, tecla_atual
-            loadn r1, #32    ; SPACE
-            cmp r0, r1
-            jeq VitoriaNivel
-            loadn r1, #13    ; ENTER (CR)
-            cmp r0, r1
-            jeq VitoriaNivel
-    skip_check_enter:
-            jmp main_inicio
+        call delay        
+            inc r0
+            loadn r1, #15
+            mod r1, r0, r1
+        jnz main_inicio
+        ; quick input check to react faster to ENTER/SPACE when exit is liberated
+        load r0, saida_liberada
+        loadn r1, #1
+        cmp r0, r1
+        jne _skip_quick_input
+        call WaitForEnter
+        load r0, tecla_atual
+        loadn r1, #13
+        cmp r0, r1
+        jeq VitoriaNivel
+        loadn r1, #32
+        cmp r0, r1
+        jeq VitoriaNivel
+_skip_quick_input:
         
+        call CalculaPos
+        call CheckPlayerPoliceCollision
+        skip_player:
+          inc r2
+          loadn r1, #5
+          mod r1, r2, r1
+        jnz skip_police
+        
+        
+        ; Move a Polícia
+      call CalculaPosPolicia
+      
+      ; 3. Checa se eles colidiram
+      call CheckPlayerPoliceCollision ; 
+      skip_police:
+
+        ; --- CHECA SE JOGADOR APERTOU ENTER/SPACE PARA AVANCAR ---
+        load r0, saida_liberada
+        loadn r1, #1
+        cmp r0, r1
+        jne _skip_check_enter
+        load r0, tecla_atual
+        loadn r1, #32    ; SPACE
+        cmp r0, r1
+        jeq VitoriaNivel
+        loadn r1, #13    ; ENTER (CR)
+        cmp r0, r1
+        jeq VitoriaNivel
+_skip_check_enter:
+        jmp main_inicio
         
             
     pop r7
@@ -380,37 +379,38 @@ delay_sai_entrada:
     pop r0
     rts
     
-; ----------------------
-; WaitForEnter (poll rapido)
-; Retorna quando ENTER(13) ou SPACE(32) forem detectados, ou timeout
-; Ao detectar, armazena tecla em tecla_atual
-; ----------------------
-WaitForEnter:
+delay_sec:
     push r0
     push r1
     push r2
     push r3
-    loadn r1, #200    ; tentativas (ajustável)
-WaitLoop:
-    inchar r0
-    loadn r2, #255
-    cmp r0, r2
-    jeq Wait_NoKey
-    ; se achou tecla, verifica se é ENTER ou SPACE
-    loadn r2, #13
-    cmp r0, r2
-    jeq Wait_Store
-    loadn r2, #32
-    cmp r0, r2
-    jeq Wait_Store
-    jmp Wait_NoKey
-Wait_Store:
-    store tecla_atual, r0
-    jmp Wait_Done
-Wait_NoKey:
+    push r4
+
+    loadn r1, #4
+
+; loops de delay
+delay_loop1_sec:
+    loadn r2, #50
+    
+delay_loop2_sec:
+    ; leitura do caracter do teclado
+    inchar r3               ; le o char do teclado
+    loadn r4, #255          ; carrega 255 (nenhuma tecla pressionada)
+    cmp r3, r4              ; compara a entrada com 255
+    jeq delay_sai_entrada_sec
+    store tecla_enter, r3
+    
+    
+delay_sai_entrada_sec:
+    dec r2
+    jnz delay_loop2_sec
     dec r1
-    jnz WaitLoop
-Wait_Done:
+    jnz delay_loop1_sec
+    
+    ;load r3, tecla_atual
+    ;store tecla_ant, r3
+    
+    pop r4
     pop r3
     pop r2
     pop r1
@@ -490,7 +490,9 @@ apagarladrao:
     add R6,R0,R2
     loadi R6, R6
         
-    outchar R6, R2
+    mov r0, r6
+    mov r1, r2
+    call SafeOutchar
 
     pop R2
     
@@ -1033,11 +1035,7 @@ eat_loop:
     loadn r1, #255
     and r7, r7, r1           ; R7 = ID Base
     pop r1
-     
-    push r0
-    push r1
-    push r2
-    
+
     ; --- CHECAGEM DE ITENS ---
     ; Diamante (ID 20 no seu código anterior, verifique se é isso mesmo ou 68='D')
     loadn r5, #20
@@ -1065,10 +1063,8 @@ eat_loop:
     jeq Comer_Moeda
     
     jmp next_eat_check
-    
-Comer_Diamante:
-    ; SALVA O ESTADO DO LOOP ANTES DE IMPRIMIR
 
+Comer_Diamante:
     load r1, bonus
     loadn r5, #3       ; Valor do diamante
     mul r5, r5, r1     ; Pontos = Valor * Bonus
@@ -1078,9 +1074,6 @@ Comer_Diamante:
     jmp Finaliza_Comer
 
 Comer_Moeda:
-    ; SALVA O ESTADO DO LOOP ANTES DE IMPRIMIR
-
-    
     load r1, bonus
     load r7, pontos
     add r7, r7, r1     ; Pontos += Bonus
@@ -1088,18 +1081,24 @@ Comer_Moeda:
     
     ; Atualiza Bonus
     load r4, steps
-    loadn r5, #6
+    loadn r5, #10
     mod r4, r4, r5
-    mul r4, r4, r1     ; Aumento = (Steps % 6 * Bonus
+    mul r4, r4, r1     ; Aumento = (Steps % 10) * Bonus
+    ; (Se quiser somar ao bonus existente, descomente a linha abaixo)
     ; add r1, r1, r4    
-    store bonus, r4    
+    ; Ajusta o bonus corretamente (somando ao existente)
+    load r3, bonus
+    add r3, r3, r4
+    store bonus, r3    ; Nota: agora somamos o incremento ao bonus existente.
 
 Finaliza_Comer:
     ; Apaga do Buffer e Tela
     load r5, r8        ; Recupera endereço do MapBuffer
     loadn r7, #31      ; Espaço vazio
     storei r5, r7      ; Limpa RAM
-    outchar r7, r6     ; Limpa Tela
+    mov r0, r7
+    mov  r1, r6
+    call SafeOutchar     ; Limpa Tela
     
     ; Contabiliza
     load r5, itens_coletados 
@@ -1107,6 +1106,12 @@ Finaliza_Comer:
     store itens_coletados, r5
     
     call AtualizaHUD
+    
+    load r5, itens_coletados
+    load r7, max_pontos
+    cmp r7, r5
+    jeq VitoriaNivel
+
     
     ; --- CHECA LIBERAÇÃO DA SAÍDA ---
     ; Primeiro, verifica se JÁ estava liberada para não spammar
@@ -1119,8 +1124,8 @@ Finaliza_Comer:
     call GetMoedasNivelAtual
     load r1, min_moedas
     cmp r5, r1
-    jle next_eat_check ; Se Coletados (r5) < Min (r1), continua (jle ou jlt dependendo da logica)
-    
+    jel next_eat_check ; Se Coletados (r5) < Min (r1), continua (jle ou jlt dependendo da logica)
+                        ; Se r5 >= r1, libera:
 
     ; Libera Saída
     loadn r1, #1
@@ -1128,17 +1133,13 @@ Finaliza_Comer:
     
     ; Mostra mensagem (APENAS UMA VEZ)
     loadn r0, #str_saida
-    loadn r1, #84
+    loadn r1, #80
     loadn r2, #2816
     call ImprimeString
-
     
     ; Não fazemos call delay nem check de tecla aqui! Isso fica no main.
     
 next_eat_check:
-    pop r2
-    pop r1
-    pop r0
     inc r2
     cmp r2, r3
     jne eat_loop
@@ -1170,7 +1171,6 @@ VitoriaNivel:
     ; Reseta variáveis para o novo nível
     loadn r0, #0
     store itens_coletados, r0 
-    store saida_liberada, r0
     
     ; Carrega as novas moedas necessárias
     call GetMoedasNivelAtual
@@ -1193,7 +1193,6 @@ ProximoNivel:
     pop r2 ; r2
     pop r1 ; r1
     pop r0 ; r0
-    
     
     jmp round_game  ; Volta para recarregar o cenário
 
@@ -1320,7 +1319,9 @@ apagarpolicia:
     add R2,R2,R5
     add R6,R0,R2
     loadi R6, R6
-    outchar R6, R2
+    mov r0, r6
+    mov  r1, r2
+    call SafeOutchar
     pop R2
     inc R4
     cmp R3, R4
@@ -1466,8 +1467,6 @@ ResetRound:
     store bonus, r0
     loadn r0, #0
     store steps, r0
-    store saida_liberada, r0
-    
     
     ; Redesenha nas posições iniciais
     load r0, ladraoSprite
@@ -1831,7 +1830,7 @@ AtualizaHUD:
     push r0
     push r1
     push r2
-	push r3
+    push r3
     push r4
     push r5
     ; 1. Imprime "PTS:" na posição 6
@@ -1873,7 +1872,9 @@ DrawHeartsLoop:
     jmp NextHeart
 
 DrawHeart:
-    outchar r2, r1       ; Desenha o Coração (#2350)
+    mov r0, r2
+    
+    call SafeOutchar       ; Desenha o Coração (#2350)
 
 NextHeart:
     inc r1               ; Avança cursor na tela
@@ -2080,7 +2081,9 @@ LimpaTela:
     loadn r2, #31     ; Caractere de espaço vazio (Fundo)
 
 limpa_loop:
-    outchar r2, r1    ; Desenha o espaço na posição R1
+    mov r0, r2
+    
+    call SafeOutchar    ; Desenha o espaço na posição R1
     inc r1            ; Próxima posição
     cmp r1, r0        ; Chegou em 1200?
     jne limpa_loop   ; Se não, continua
@@ -8601,3 +8604,67 @@ ladraoGaps_V : var #6 ; Forma 2x3
   static ladraoGaps_V + #3, #80 
   static ladraoGaps_V + #4, #40
   static ladraoGaps_V + #5, #0
+
+
+
+; ----------------------
+; SafeOutchar
+; r0 = char, r1 = pos
+; Verifica limites antes de chamar outchar para evitar writes fora da tela.
+; ----------------------
+SafeOutchar:
+    push r0
+    push r1
+    push r2
+    push r3
+    loadn r2, #0
+    cmp r1, r2
+    jel SafeOut_Skip
+    loadn r2, #1199
+    cmp r1, r2
+    jeg SafeOut_Skip
+    outchar r0, r1
+SafeOut_Skip:
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; ----------------------
+; WaitForEnter (poll rapido)
+; Retorna quando ENTER(13) ou SPACE(32) forem detectados, ou timeout
+; Ao detectar, armazena tecla em tecla_atual
+; ----------------------
+WaitForEnter:
+    push r0
+    push r1
+    push r2
+    push r3
+    loadn r1, #200    ; tentativas (ajustável)
+WaitLoop:
+    inchar r0
+    loadn r2, #255
+    cmp r0, r2
+    jeq Wait_NoKey
+    ; se achou tecla, verifica se é ENTER ou SPACE
+    loadn r2, #13
+    cmp r0, r2
+    jeq Wait_Store
+    loadn r2, #32
+    cmp r0, r2
+    jeq Wait_Store
+    jmp Wait_NoKey
+Wait_Store:
+    store tecla_atual, r0
+    jmp Wait_Done
+Wait_NoKey:
+    dec r1
+    jnz WaitLoop
+Wait_Done:
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
