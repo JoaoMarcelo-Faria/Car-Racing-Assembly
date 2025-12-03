@@ -102,8 +102,8 @@ Para rodar este jogo, você precisará do **Simulador do Processador ICMC**.
 ## ✒️ Autores
 
 * **[João Marcelo Geraldo Cintra Faria]** - [GitHub](https://github.com/JoaoMarcelo-Faria)
-* **[Guilherme]** - [GitHub](https://github.com/JoaoMarcelo-Faria)
-* **[Murilo]** - [GitHub](https://github.com/JoaoMarcelo-Faria)
+* **[Guilherme Oliveira]** - [GitHub](https://github.com/Guilherme-Oliveira18)
+* **[Murilo Ortega Pereira]** - [GitHub]((https://github.com/muorts))
 
 ---
 
