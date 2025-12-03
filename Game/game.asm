@@ -25,6 +25,13 @@ jmp main
 vidas: var #1
 static vidas + #0, #3
 
+; --- VARIÁVEIS DE PONTUAÇÃO ---
+bonus: var #1
+static bonus + #0, #50  ; Começa com 50 -> vira 250 ao pegar o diameante
+
+steps: var #1
+static steps + #0, #0  ; Contador de passos no nível
+
 max_pontos: var #1
 static max_pontos + #0, #5 ; Defina aqui quantos pontos existem no mapa para ganhar
 
@@ -49,6 +56,9 @@ static tecla_atual + #0, #255
 tecla_ant: var #1
 static tecla_ant + #0, #255
 
+tecla_enter: var #1
+static tecla_enter + #0, #255
+
 ; Variavel da funcao de calculo de uma posicao no cenario
 posObjeto: var #1
 posCenario: var #1
@@ -60,27 +70,76 @@ static rand_ptr + #0, #0
 ; Variavel com a quantidade de pontos
 pontos: var #1
 static pontos + #0, #0
-fant_comidos: var #1
-static fant_comidos + #0, #0
+
+
+; Buffer que guardará o estado ATUAL do nível rodando
+; Todos os personagens devem ler/escrever AQUI, não no 'level1' ou 'level2'
+MapBuffer: var #1200
 
 ;Variaveis de nivel
 nivel_atual: var #1
 static nivel_atual + #0, #1     ;começa no nivel 1
-cen_atual: var #1               ;ponteiro para o cenario atual
+
+
+; --- CONTROLE DE SAÍDA E MOEDAS ---
+saida_liberada: var #1     ; 0 = Bloqueada, 1 = Liberada (Pode passar de nível)
+static saida_liberada + #0, #0
+
+min_moedas: var #1         ; Mínimo necessário para liberar a saída
+static min_moedas + #0, #0
+
+; MÍNIMO para passar de cada nível
+min_moedas_lvl1: var #1
+static min_moedas_lvl1 + #0, #3  ; Ex: Precisa de 3 das 12 para passar
+
+min_moedas_lvl2: var #1
+static min_moedas_lvl2 + #0, #5  ; Ex: Precisa de 5 das 13
+
+min_moedas_lvl3: var #1
+static min_moedas_lvl3 + #0, #9 ; Ex: Precisa de 9 das 18
+
+min_moedas_lvl4: var #1
+static min_moedas_lvl4 + #0, #13 ; Ex: Precisa de 13 das 22
+
+; String para avisar que pode sair
+str_saida: string "   PARA SAIR PRESSIONE ENTER   "
 
 ;Moedas por nivel
 moedas_lvl1: var #1
-static moedas_lvl1 + #0, #5     ;tem 5 moedas no nivel 1
+static moedas_lvl1 + #0, #11    ;tem 5 moedas no nivel 1
 
 moedas_lvl2: var #1
-static moedas_lvl2 + #0, #4     ;tem 4 moedas no nivel 2
+static moedas_lvl2 + #0, #13    ;tem 4 moedas no nivel 2
 
 moedas_lvl3: var #1
-static moedas_lvl3 + #0, #6       ;tem 6 moedas no nivel 3
+static moedas_lvl3 + #0, #18      ;tem 6 moedas no nivel 3
 
 moedas_lvl4: var #1
-static moedas_lvl4 + #0, #4
+static moedas_lvl4 + #0, #22
 
+;Variaveis para a funcao de dar um teletransporte
+str_teleport: string " ESPACO P/ CONFIRMAR O TP      "
+; Backup para cancelar o teletransporte
+teleport_backup_pos: var #1
+teleport_backup_sprite: var #1
+teleport_backup_gap: var #1
+
+
+
+;Variaveis para a funcao de matar policial
+str_freeze_lvl1: string "DIGITE 1 PARA MATAR O POLICIAL"
+str_freeze_lvl2: string "DIGITE 1-2 PARA MATAR UM POLICIAL"
+str_freeze_lvl3: string "DIGITE 1-3 PARA MATAR UM POLICIAL"
+str_freeze_lvl4: string "DIGITE 1-4 PARA MATAR UM POLICIAL"
+str_clear: string "                                  "
+
+; variavel para Contabilizar os itens
+itens_coletados: var #1
+static itens_coletados + #0, #0
+
+; quantidade de policias ativas
+total_policiasatv: var #1
+static total_policiasatv + #0, #0
 ; LADRAO O PERSONAGEM PRINCIPAL
 
 ; Variaveis de movimentacao Ladrao
@@ -99,20 +158,22 @@ ladraoGapsPtr : var #1  ;
 ladraoGapsPtr_ant : var #1
 
 ; POLICIAIS - INIMIGOS
-;direção inicial da policia
-dir_policia: var #1
-static dir_ladrao + #0, #0
-;posições da policia ao inicializar
-pos_ant_policia: var #1
-static pos_ant_policia + #0, #490
-pos_policia: var #1
-static pos_policia + #0, #490
+; --- BANCO DE DADOS DA POLÍCIA (4 Unidades) ---
+; Índices: 0, 1, 2, 3
 
-;GAPS para printar a policia
-policiaSprite: var #1
-policiaGapsPtr : var #1  
-policiaGapsPtr_ant : var #1
-est_policia: var #1 ; Estado (0=Chase, 1=Frightened, 2=Eaten)
+morto_policia: var #4      ; Array de se deve printar o policial atual e utiliza-lo atuais
+pos_policia: var #4      ; Array de posições atuais
+pos_ant_policia: var #4  ; Array de posições anteriores
+policia_dir: var #4      ; Array de direções
+policia_sprite: var #4   ; Array de ponteiros de sprite
+policia_gaps: var #4     ; Array de ponteiros de gaps atuais
+policia_gaps_ant: var #4 ; Array de ponteiros de gaps anteriores
+policia_est: var #4      ; Array de estados
+
+; Variável de controle do loop
+temp_indice: var #1
+static temp_indice + #0, #0
+
 
 ; --- VARIAVEIS DE DIREÇÃO E ESTRATÉGIA DE LOCALIZAÇÃO DA POLICIA
 
@@ -125,34 +186,28 @@ target_eh_xy: var #1
 pos_target: var #1
 x_target: var #1
 y_target: var #1
+target_carro1: var #1   ; Armazena o alvo do carro 1 para o carro 3 usar
+
 dist_a: var #1
 dist_s: var #1
 dist_w: var #1
 dist_d: var #1
 dist_dir: var #1
 ehParede: var #1
+
 pos_policiaant_a: var #1
 pos_policiaant_w: var #1
 pos_policiaant_s: var #1
 pos_policiaant_d: var #1
 
-
-
 main:
-
-    call loop_ini
-    push r0
-    push r1
-    push r2
-    push r3
-    push r4
-    push r5
-    push r6
-    push r7
+    call loop_ini          
     call inicializa_var
     
-    round_game:
-    ; Carrega o cenário correto baseado no nível atual
+round_game:
+    ; ---------------------------------------
+    ; SELEÇÃO DE NÍVEL
+    ; ---------------------------------------
     load r0, nivel_atual
     
     loadn r1, #1
@@ -165,84 +220,136 @@ CarregaLevel2:
     loadn r1, #2
     cmp r0, r1
     jne CarregaLevel3
-    loadn r0, #level2  
+    loadn r0, #level2
     jmp CarregaCenario
     
 CarregaLevel3:
     loadn r1, #3
     cmp r0, r1
     jne CarregaLevel4
-    loadn r0, #level3  
+    loadn r0, #level3
     jmp CarregaCenario
     
 CarregaLevel4:
-    loadn r0, #level4   
+    loadn r0, #level4
+    jmp CarregaCenario
     
 CarregaCenario:
-    store cen_atual, r0
+    ; 1. Copia o Mapa da ROM para a RAM (Buffer)
+    call CarregaMapaParaBuffer
+    
+    ; 2. Desenha o Mapa usando o Buffer
+    loadn r0, #MapBuffer
     call printCenario
     
-    ; Atualiza max_pontos para o nível atual
+    ; 3. Configurações do Nível
     call GetMoedasNivelAtual
-    
     call AtualizaHUD
+
+    call ResetPosicoesPorNivel ; <--- ISSO É OBRIGATÓRIO PARA RESETAR AS POSIÇÕES CORRETAMENTE DOS POLICIAIS E LADRÃO POR LEVEL!
     
-    ; Reseta posições do ladrão e polícia para o novo nível
-    call ResetPosicoesPorNivel
+    ; ---------------------------------------
+    ; DESENHO INICIAL DOS PERSONAGENS
+    ; ---------------------------------------
     
-    ; Desenha os personagens
+    ; Desenha Ladrão
     load r0, ladraoSprite
     load r1, ladraoGapsPtr
     load r2, pos_ladrao
     call printladrao
     
-    load r0, policiaSprite
-    load r1, policiaGapsPtr
-    load r2, pos_policia
-    call printladrao
-    
-    loadn r0,#0
-    loadn r2,#0
+    ; Desenho Inicial Policiais
+    ; Desenha os 4 Policiais (Loop Inicial)
+    loadn r3, #0 ; i = 0
+    load r4, nivel_atual ; max
+    loadn r5,#1
 
-    main_inicio:    
-          call delay
-          inc r0
-          loadn r1, #15
-          mod r1, r0, r1
-        jnz main_inicio
-        
-        
-        ; Simplesmente chame CalculaPos. 
-        ; Ele vai cuidar de mover E desenhar o personagem.
-        call CalculaPos
-        call CheckPlayerPoliceCollision
-        skip_player:
-          inc r2
-          loadn r1, #5
-          mod r1, r2, r1
-        jnz skip_police
-        
-        
-        ; Move a Polícia
-      call CalculaPosPolicia
-      
-      ; 3. Checa se eles colidiram
-      call CheckPlayerPoliceCollision ; 
-      skip_police:
-        jmp main_inicio
-        
-            
-    pop r7
-    pop r6
-    pop r5
-    pop r4
-    pop r3
-    pop r2
-    pop r1
-    pop r0
-    halt
-    ;jmp main;
+DrawInitPolice:
+    cmp r3, r4
+    jeq StartGameLoop
     
+    ; Configura qual policial vamos desenhar
+    store temp_indice, r3
+    
+    loadn r2, #morto_policia
+    add r2, r2, r3
+    loadi r2,r2
+    cmp r5,r2
+    jeq next_pollD
+         
+    ; Carrega Sprite
+    loadn r0, #policia_sprite
+    add r0, r0, r3
+    loadi r0, r0
+    
+    ; Carrega Gaps
+    loadn r1, #policia_gaps
+    add r1, r1, r3
+    loadi r1, r1
+    
+    ; Carrega Posição
+    loadn r2, #pos_policia
+    add r2, r2, r3
+    loadi r2, r2
+    
+    call printladrao ; (Usa a mesma função de print)
+    
+    next_pollD:
+        inc r3
+    jmp DrawInitPolice
+
+StartGameLoop:
+    loadn r0, #0 ; Contador de Delay
+    loadn r2, #0 ; Contador de Velocidade da Polícia
+
+main_inicio:
+            
+        call delay
+            inc r0
+            loadn r1, #15
+            mod r1, r0, r1
+        jnz main_inicio
+        ; entrada rapida para checar rapido o ENTER quando a saida for liberada
+        load r0, saida_liberada
+        loadn r1, #1
+        cmp r0, r1
+        jne GameLoop_Move           ;se a saida nao for liberada, começa o jogo normal
+        call WaitForEnter
+        load r0, tecla_atual
+        loadn r1, #13
+        cmp r0, r1
+        jeq VitoriaNivel
+        loadn r1, #32
+        cmp r0, r1
+        jeq VitoriaNivel
+        
+    GameLoop_Move:
+        
+    ; --- 2. MOVIMENTAÇÃO DO JOGADOR ---
+    call CalculaPos
+    
+    ; Checa colisão logo após o jogador mover
+    call CheckPlayerPoliceCollision
+
+    ; --- 3. CONTROLE DE VELOCIDADE DA POLÍCIA ---
+    ; A polícia move 1 vez a cada X movimentos do loop principal
+    inc r2
+    loadn r1, #2  ; A polícia move metade das vezes (ajuste para dificuldade)
+    mod r1, r2, r1
+    jnz SkipPoliceMove
+    
+    ; Move TODAS as Polícias (IA de Equipe)
+    call UpdatePolicia
+    ; Checa colisão logo após a polícia mover
+    call CheckPlayerPoliceCollision 
+
+SkipPoliceMove:
+    
+    jmp main_inicio ; Volta para o loop         
+    halt
+    
+
+; funçao que imprime o cenario
 printCenario:
   push R0
   push R1
@@ -268,7 +375,7 @@ printCenario:
   pop R0
   rts 
 
-; funcao de delay
+; funcao de delay - principal
 ; alem de ser o delay, le a entrada do teclado
 delay:
     push r0
@@ -308,6 +415,44 @@ delay_sai_entrada:
     pop r0
     rts
     
+; ----------------------
+; WaitForEnter (poll rapido)
+; Retorna quando ENTER(13) ou SPACE(32) forem detectados, ou timeout
+; Ao detectar, armazena tecla em tecla_atual
+; ----------------------
+WaitForEnter:
+    push r0
+    push r1
+    push r2
+    push r3
+    loadn r1, #200    ; tentativas (ajustável)
+WaitLoop:
+    inchar r0
+    loadn r2, #255
+    cmp r0, r2
+    jeq Wait_NoKey
+    ; se achou tecla, verifica se é ENTER ou SPACE
+    loadn r2, #13
+    cmp r0, r2
+    jeq Wait_Store
+    loadn r2, #32
+    cmp r0, r2
+    jeq Wait_Store
+    jmp Wait_NoKey
+Wait_Store:
+    store tecla_atual, r0
+    jmp Wait_Done
+Wait_NoKey:
+    dec r1
+    jnz WaitLoop
+Wait_Done:
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+    
+;imprime o ladrao
 printladrao:
   push R0
   push R1
@@ -316,7 +461,7 @@ printladrao:
   push R4
   push R5
   push R6
-
+  push R7
 
   loadn R3, #6 ;tamanho ladrao
   loadn R4, #0 ;incremetador
@@ -325,21 +470,18 @@ printladrao:
     add R5,R0,R4
     loadi R5, R5
 
-    push R2
-    
     add R6,R1,R4
     loadi R6, R6
 
-    add R2, R2, R6
+    add R7, R2, R6
 
-    outchar R5, R2
-
-    pop R2
+    outchar R5, R7
     
     inc R4
     cmp R3, R4
     jne printladraoLoop
 
+  pop R7
   pop R6
   pop R5
   pop R4
@@ -362,8 +504,7 @@ apagarladrao:
   loadn R6, #255
   store tecla_atual, R6
   
-  
-  call GetCenarioAtual
+  loadn R0, #MapBuffer
   load R1, ladraoGapsPtr_ant
   load R2, pos_ant_ladrao
   loadn R3, #6 ;tamanho ladrao
@@ -399,11 +540,12 @@ apagarladrao:
   pop R0
   rts
 
+;funcao que apenas espera com um loop que Decrementa
 just_wait:
     push R0
     push R1
     ;push R2
-    loadn R0, #63999
+    loadn R0, #63999    ;limite do processador
     loadn R1, #0
     lll:
         dec R0
@@ -418,7 +560,18 @@ loop_ini:
     push R0
     push R1
     push R2
-    loadn R0, #menu
+    loadn R0, #menu         ;imprime o menu
+    call printCenario
+    loop_menu_wait:
+        call delay 
+        load R2, tecla_atual
+        loadn R1, #'x'          ;espera o usuario digitar x para ir pra proxima tela
+        cmp R1, R2
+        jne loop_menu_wait
+    loadn R1, #255
+    store tecla_atual, R1       ; limpa o teclado na memoria
+    call WaitKeyRelease
+    loadn R0, #PointsRules      ;imprime o menu de pontos
     call printCenario
     loop_inil:
         call delay 
@@ -547,99 +700,117 @@ ChecaDireita:
 
     
 FazChecagem:
-; --- 4. CHECAGEM DE COLISÃO E LIMITES ---
-    ; A nova posição está em r0.
-    push r7
-    ; Primeiro, checa os limites da tela (0 e 1200)
+    ; 1. Checagem de Limites da Tela (Central)
     loadn r2, #0
     cmp r0, r2
-    jle FimCalculaPos      ; Se r0 < 0, PULA
+    jle Movimento_Invalido
     
     mov r4, r0
-    loadn r2, #81 ; Maior offset (ladraoGaps + 5)
+    loadn r2, #81 
     add r4, r4, r2
     loadn r3, #1200
     cmp r4, r3
-    jgr PopFimCalculaPos      ; Se (r0 + 42) >= 1200, PULA
+    jgr Movimento_Invalido
+
+    ; 2. Checagem de Colisão (R0=NovaPos, R6=GapShape)
+    mov r2, r6              ; Passa Shape para R2 (CheckMoveValido usa R2)
+    call CheckMoveValido    ; Retorna R7=1 (ok) ou 0 (parede)
     
-    mov r2,r6
-    ; Agora, checa a colisão com o cenário
-    call CheckMoveValido    ; Esta função usa R0 (nova pos)
-                            ; e retorna R7 (1=valido, 0=invalido)
-    
-    ; -- Verifica se o movimento padrão deu certo
-    loadn r1, #1
-    cmp r7, r1              
-    jeq LimpaStackEMove ; Se válido, vai direto                        
-    
-    ; --- LÓGICA DE CORNERING (ASSISTÊNCIA DE CURVA) ---
-    ; Se bateu, tentamos ajustar a posição em +/- 1 pixel para encaixar no buraco
-    pop r3; R3 agora tem o antigo r7 (1 = curva e 0 = reto)
-    ; Tenta Deslocar +1 (Direita/Baixo)
-    loadn r2, #0
-    cmp r3,r2
-    jeq FimCalculaPos ; Não é curva, não faz assistência
-    
-    push r0 ; Salva pos original travada
-    loadn r4, #1
-    add r0, r0, r4 
-    call CheckMoveValido ; Testa pos+1
     loadn r1, #1
     cmp r7, r1
-    jeq CorneringSucesso ; Se funcionou, usa essa nova posição!
-    pop r0 ; Restaura original se falhou
+    jeq Movimento_Valido   ; Se passou de primeira, ótimo!
 
-    ; Tenta Deslocar -1 (Esquerda/Cima)
+    ; --- LÓGICA DE ASSISTÊNCIA DE CURVA (CORNERING) ---
+    ; Se bateu, tenta deslocar +/- 1 no eixo contrário para encaixar
+    
+    ; Descobre se estamos movendo Vertical ou Horizontal
+    load r1, dir_ladrao
+    loadn r2, #'w'
+    cmp r1, r2
+    jeq Tenta_H
+    loadn r2, #'s'
+    cmp r1, r2
+    jeq Tenta_H
+    
+    ; Se estamos indo A ou D, tenta ajustar Verticalmente (+/- 40)
+Tenta_V:
+    ; Tenta Cima (-40)
     push r0
-    loadn r4, #1
-    sub r0, r0, r4
-    call CheckMoveValido ; Testa pos-1
+    loadn r3, #40
+    sub r0, r0, r3
+    mov r2, r6             ; Garante shape certo
+    call CheckMoveValido
     loadn r1, #1
     cmp r7, r1
-    jeq CorneringSucesso
-    pop r0 ; Restaura original se falhou
+    jeq Sucesso_Assistido
+    pop r0                 ; Restaura
     
-    ; Se nada funcionou, é realmente uma parede
-    jmp FimCalculaPos 
+    ; Tenta Baixo (+40)
+    push r0
+    loadn r3, #40
+    add r0, r0, r3
+    mov r2, r6
+    call CheckMoveValido
+    loadn r1, #1
+    cmp r7, r1
+    jeq Sucesso_Assistido
+    pop r0
+    jmp Movimento_Invalido
+
+Tenta_H:
+    ; Tenta Esquerda (-1)
+    push r0
+    loadn r3, #1
+    sub r0, r0, r3
+    mov r2, r6
+    call CheckMoveValido
+    loadn r1, #1
+    cmp r7, r1
+    jeq Sucesso_Assistido
+    pop r0
     
-PopFimCalculaPos:
-    pop r7 ; Limpa lixo da stack
+    ; Tenta Direita (+1)
+    push r0
+    loadn r3, #1
+    add r0, r0, r3
+    mov r2, r6
+    call CheckMoveValido
+    loadn r1, #1
+    cmp r7, r1
+    jeq Sucesso_Assistido
+    pop r0
+    jmp Movimento_Invalido
+
+Sucesso_Assistido:
+    ; r0 tem a posição ajustada que funcionou. 
+    ; Removemos o valor antigo da pilha (o pop r0 que pulamos)
+    pop r4 
+    jmp Movimento_Valido
+
+Movimento_Invalido:
     jmp FimCalculaPos
-    
-LimpaStackEMove:
-    pop r4 ; Limpa a flag de curva da stack
-    jmp MovimentoConfirmado
-CorneringSucesso:
-    ; Se chegamos aqui, o cornering achou um lugar válido.
-    ; Precisamos limpar a stack do "push r0" que ficou pendente no sucesso
-    ; (O pop r0 lá em cima só roda se falhar. Aqui precisamos descartar o valor antigo da stack)
-    pop r4 ; Tira o valor velho da stack (joga em r4 lixo)
-    
-    
-; -- Entrou aqui podemos verificar o que ocorreu
-MovimentoConfirmado:  
-    call CheckEatItems        ; <-- CHAMA A NOVA LÓGICA DE PONTOS
-    
-    ; --- 5. MOVIMENTAÇÃO VÁLIDA ---
-    ; Se chegamos aqui, os limites e a colisão estão OK.
-    ; AGORA SIM, NÓS "CONFIRMAMOS" AS MUDANÇAS
-    store pos_ladrao, r0      ; Salva a nova posição
-    store ladraoSprite, r5    ; Salva o novo ponteiro de sprite
-    store ladraoGapsPtr, r6   ; Salva o novo ponteiro de gaps
 
-    call apagarladrao       ; Apaga da posição antiga
-    mov r0, r5                ; r0 = ladraoSprite (novo)
-    mov r1, r6                ; r1 = ladraoGapsPtr (novo)
-    load r2, pos_ladrao       ; r2 = pos_ladrao (nova)
-    call printladrao        ; Desenha na nova posição
+Movimento_Valido:
+    ; Salva tudo
+    store pos_ladrao, r0      
+    store ladraoSprite, r5    
+    store ladraoGapsPtr, r6   
     
-
-
+    load r4, steps
+    inc r4
+    store steps, r4
+    
+    call CheckEatItems
+    call apagarladrao
+    
+    mov r0, r5                
+    mov r1, r6                
+    load r2, pos_ladrao       
+    call printladrao
+    
 FimCalculaPos:
-    ; 7. Limpa a 'tecla_atual' para que o delay não leia a mesma tecla para sempre
     loadn r1, #255
     store tecla_atual, r1
-
     pop r7
     pop r6
     pop r5
@@ -649,7 +820,6 @@ FimCalculaPos:
     pop r1
     pop r0
     rts
-
 
 ;---------------------------------------------------------------------
 ; checkMoveValido
@@ -667,11 +837,8 @@ CheckMoveValido:
     push r5 ; Usado para o ID do tile
     push r6
 
-    call GetCenarioAtual    ; <-- MUDANÇA: chama a função
-    mov r1, r0              ; <-- r1 recebe o endereço do cenário
-    pop r0                  ; <-- recupera a nova_pos da stack
-    push r0                 ; <-- coloca de volta
 
+    loadn r1, #MapBuffer      ; Endereço base do cenário
     ;load r2, ladraoGapsPtr    ; Endereço base dos offsets do carrinho
     loadn r3, #6             ; Tamanho do loop (6 tiles)
     loadn r4, #0             ; Incrementador (i = 0)
@@ -717,7 +884,11 @@ CheckLoopEnd:
 IsTileWalkable:
 ; R5 tem o ID do Tile. R7 é a flag.
     push r0 ; Salva registrador temporário
-    
+    push r5 ; Salvamos R5 para não estragar o valor original fora da função
+
+; --- REMOVE A COR ---
+    call GetBaseID ; Agora R5 tem apenas o ID do caractere (0-255)
+
     ; MUDANÇA PRINCIPAL: Assumimos que o tile É VÁLIDO (R7 = 1)
     loadn r7, #0
     
@@ -735,44 +906,114 @@ IsTileWalkable:
     cmp r5, r0
     jeq Walkable
     
-    loadn r0, #2835
+    loadn r0, #19
     cmp r5, r0
     jeq Walkable
     
-    loadn r0, #1556
+    loadn r0, #20
     cmp r5, r0
     jeq Walkable
     
-    loadn r0, #789
+    loadn r0, #21
+    cmp r5, r0
+    jeq Walkable
+    
+    loadn r0, #83
     cmp r5, r0
     jeq Walkable
 
+    loadn r0, #45
+    cmp r5, r0
+    jeq Walkable
     
+    loadn r0, #33
+    cmp r5, r0
+    jeq Walkable
     
-    ; ... adicione mais IDs de parede aqui se necessário ...
+    loadn r0, #43
+    cmp r5, r0
+    jeq Walkable
     
-    ; Se o código chegou aqui, não é nenhuma das paredes listadas.
-    ; O movimento é VÁLIDO, e R7 já está como 1.
+    loadn r0, #46
+    cmp r5, r0
+    jeq Walkable
+    
+    ; ... adicione mais IDs de rua aqui se necessário ...
+    
+    ; Se o código chegou aqui, não é nenhuma das ruas listadas.
+    ; O movimento é INVÁLIDO, e R7 nao está como 1.
     jmp Exit_Walkable
     
 Walkable:
     loadn r7,#1
 Exit_Walkable:
+    pop r5
     pop r0
     rts
-   
+
+
+ ; ---------------------------------------------------------------------
+; CarregaMapaParaBuffer
+; Copia o conteúdo de R0 (ponteiro do levelX) para o MapBuffer
+; ---------------------------------------------------------------------
+CarregaMapaParaBuffer:
+    push r0 ; Endereço do level original (ROM)
+    push r1 ; Endereço do Buffer (RAM)
+    push r2 ; Contador
+    push r3 ; Limite
+    push r4 ; Valor
+
+    loadn r1, #MapBuffer
+    loadn r2, #0
+    loadn r3, #1200
+    
+Cpy_loop:
+    cmp r2, r3
+    jeq Copy_end
+    
+    loadi r4, r0    ; Lê da ROM (LevelX)
+    storei r1, r4   ; Grava na RAM (Buffer)
+    
+    inc r0
+    inc r1
+    inc r2
+    jmp Cpy_loop
+    
+Copy_end:
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; ---------------------------------------------------------------------
+; GetBaseID
+; Remove a informação de cor do caractere em R5.
+; Entrada: R5 (ID completo com cor)
+; Saída: R5 (Apenas o ID do caractere 0-255)
+; ---------------------------------------------------------------------
+GetBaseID:
+    push r1
+    loadn r1, #256
+    mod r5, r5, r1 ; Resto da divisão por 256 remove os bits de cor
+    pop r1
+    rts
+
 GetMoedasNivelAtual:
     ; Carrega em max_pontos o número de moedas do nível atual
     push r0
     push r1
 
-        load r0, nivel_atual
+    load r0, nivel_atual
     
     loadn r1, #1
     cmp r0, r1
     jne GetMoedas_Level2
     load r1, moedas_lvl1
     store max_pontos, r1
+    load  r1, min_moedas_lvl1
+    store min_moedas, r1
     jmp GetMoedas_Fim
     
 GetMoedas_Level2:
@@ -781,6 +1022,8 @@ GetMoedas_Level2:
     jne GetMoedas_Level3
     load r1, moedas_lvl2
     store max_pontos, r1
+    load  r1, min_moedas_lvl2
+    store min_moedas, r1
     jmp GetMoedas_Fim
     
 GetMoedas_Level3:
@@ -789,11 +1032,16 @@ GetMoedas_Level3:
     jne GetMoedas_Level4
     load r1, moedas_lvl3
     store max_pontos, r1
+    load  r1, min_moedas_lvl3
+    store min_moedas, r1
     jmp GetMoedas_Fim
     
 GetMoedas_Level4:
     load r1, moedas_lvl4
     store max_pontos, r1
+    load  r1, min_moedas_lvl4
+    store min_moedas, r1
+    
     
 GetMoedas_Fim:
     pop r1
@@ -804,79 +1052,275 @@ GetMoedas_Fim:
 ; CheckEatItems
 ; Checa se o carrinho está sobre algum item coletável e o "come".
 ; Usa: pos_ladrao (novo), ladraoGapsPtr (novo)
+;(SISTEMA DE BÔNUS E DIAMANTE)
+; ---------------------------------------------------------------------
+; ---------------------------------------------------------------------
+; CheckEatItems (CORRIGIDA)
 ; ---------------------------------------------------------------------
 CheckEatItems:
-    push r0 ; &level1
-    push r1 ; &ladraoGapsPtr
-    push r2 ; loop counter (i)
-    push r3 ; max (6)
-    push r4 ; pos_ladrao
-    push r5 ; offset
-    push r6 ; item_addr_na_tela
-    push r7 ; item_ID_do_mapa
-    ;r8 = variavel
+    push r0 ; &MapBuffer
+    push r1 ; bonus / temp
+    push r2 ; loop i
+    push r3 ; max 6
+    push r4 ; pos_ladrao / steps
+    push r5 ; offset / acumulador
+    push r6 ; posicao na tela
+    push r7 ; ID do tile / pontos
+    ; r8 é usado como variável estática, não precisa de push/pop
     
-    load r4, pos_ladrao      ; Posição ATUAL
-    load r1, ladraoGapsPtr   ; Gaps ATUAIS
-    call GetCenarioAtual     ; checa o cenario da moeda
+    load r4, pos_ladrao      
+    load r1, ladraoGapsPtr   
+    loadn r0, #MapBuffer
     loadn r3, #6
-    loadn r2, #0             ; i = 0
+    loadn r2, #0             
     
 eat_loop:
-    add r5, r1, r2           ; r5 = &gaps[i]
-    loadi r5, r5             ; r5 = gaps[i]
-    add r6, r4, r5           ; r6 = pos_ladrao + offset (POSIÇÃO NA TELA)    
-    add r5, r0, r6           ; r8 = &level1[pos_na_tela]
-    store r8, r5
-    loadi r7, r5             ; r7 = ID do tile no mapa
+    add r5, r1, r2           
+    loadi r5, r5             
+    add r6, r4, r5           ; R6 = Posição na tela
+    
+    add r5, r0, r6           ; R5 = Endereço no MapBuffer
+    store r8, r5             ; Salva endereço em R8
+    loadi r7, r5             ; R7 = Conteúdo
 
-    ; É um "piso" (45, 15, 31)? Se sim, ignore.
-    loadn r5, #2835
+    ; --- REMOVE A COR PARA CHECAGEM ---
+    push r1
+    loadn r1, #255
+    and r7, r7, r1           ; R7 = ID Base
+    pop r1
+     
+    push r0
+    push r1
+    push r2
+    
+    ; --- CHECAGEM DE ITENS ---
+    ; Diamante 
+    loadn r5, #20
     cmp r7, r5
-    jeq Comer
-    loadn r5, #1556
+    jeq Comer_Diamante
+
+    ;Função da arma
+    loadn r5, #21
     cmp r7, r5
-    jeq Comer
-    loadn r5, #789
+    jeq Comer_Congelante
+
+    ;Coração para acréscimo de vida
+    loadn r5, #46
     cmp r7, r5
-    jeq Comer
+    jeq Comer_Coracao    
+    
+    ;Teletransporte
+    loadn r5, #43
+    cmp r7, r5
+    jeq Comer_Teletransporte
+    ; Moedas
+    loadn r5, #19
+    cmp r7, r5
+    jeq Comer_Moeda
+    loadn r5, #33
+    cmp r7, r5
+    jeq Comer_Moeda
+
     
     jmp next_eat_check
-    ; Se NÃO é piso E NÃO é parede (pois já passamos pela colisão),
-    ; então é um COLETÁVEL! (como 789, 1556, 2835)
+
+Comer_Teletransporte:
+    ; Apenas chama a função de teletransporte.
+    ; A função vai retornar em R7: 
+    ; 1 = Confirmou (Moveu e gastou o item)
+    ; 0 = Cancelou (Volta tudo e mantem o item)
     
-Comer:
-    ; 1. "Coma" (apague do mapa 'levelx')
-    loadn r7, #31            ; Caractere de espaço vazio
-    load r5, r8
-    storei r5, r7
+    call ExecutaTeletransporte
     
-    ; 2. "Apague" da tela (desenhe o espaço vazio)
-    outchar r7, r6
+    loadn r0, #1
+    cmp r7, r0
+    jne Pula_Apagar_Item_Tele ; Se R7 != 1 (Cancelou), não apaga o item
     
-    ; 3. Incremente os pontos
-    load r7, pontos
-    inc r7
-    store pontos, r7
+    ; --- SE CONFIRMOU (R7 == 1) ---
+    ; Agora sim, apagamos o item da memória e da tela definitivamente
+    load r5, r8        ; Endereço salvo no início do loop (MapBuffer)
+    loadn r7, #31      ; Espaço vazio
+    storei r5, r7      ; Apaga da RAM
+    outchar r7, r6     ; Apaga da Tela (R6 é a posição na tela calculada no loop)
     
-    ; 4. Atualiza HUD e Checa Vitória
+    ; Incrementa contador de itens se necessário
+    load r5, itens_coletados 
+    inc r5
+    store itens_coletados, r5
     call AtualizaHUD
     
-    call GetMoedasNivelAtual
-    load r5, max_pontos
-
-    cmp r7, r5
-    jeq VitoriaNivel
-    
+Pula_Apagar_Item_Tele:
     jmp next_eat_check
     
+Comer_Coracao:
+    ; 1. Incrementa a vida (Lógica de Jogo)
+    load r1, vidas
+    inc r1
+    store vidas, r1
+    
+    ; 2. Atualiza o HUD imediatamente (opcional, mas recomendado para feedback)
+    call AtualizaHUD 
+
+    ; 3. LÓGICA DE PERSISTÊNCIA: Apagar o item do mapa ORIGINAL (levelX)
+    ; O registrador R6 contém o offset (posição linear) do item que acabamos de pegar
+    push r0
+    push r1
+    push r2
+    push r3
+
+    load r1, nivel_atual
+    
+    ; Seleciona o endereço base do nível atual
+    loadn r2, #1
+    cmp r1, r2
+    jeq Coracao_Level1
+    
+    loadn r2, #2
+    cmp r1, r2
+    jeq Coracao_Level2
+    
+    loadn r2, #3
+    cmp r1, r2
+    jeq Coracao_Level3
+    
+    loadn r2, #4
+    cmp r1, r2
+    jeq Coracao_Level4
+    
+    jmp Coracao_Fim_Persistencia ; Segurança caso nível inválido
+
+Coracao_Level1:
+    loadn r3, #level1
+    jmp Apaga_Na_Fonte
+Coracao_Level2:
+    loadn r3, #level2 ; Certifique-se que a label level2 existe no seu código
+    jmp Apaga_Na_Fonte
+Coracao_Level3:
+    loadn r3, #level3
+    jmp Apaga_Na_Fonte
+Coracao_Level4:
+    loadn r3, #level4
+    jmp Apaga_Na_Fonte
+
+Apaga_Na_Fonte:
+    ; R3 = Endereço Base do Nível Original
+    ; R6 = Offset do item (já calculado em CheckEatItems)
+    add r3, r3, r6      ; R3 agora aponta para o endereço exato na ROM/Var estática
+    loadn r2, #31       ; Carrega código do Espaço em Branco (#31 ou o que usar para vazio)
+    storei r3, r2       ; ESMAGA o coração no mapa original com um espaço vazio
+
+Coracao_Fim_Persistencia:
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+
+    ; Pula para finalizar (apagar da tela e buffer atual)
+    jmp Finaliza_Comer
+    
+Comer_Diamante:
+    ; SALVA O ESTADO DO LOOP ANTES DE IMPRIMIR
+
+    load r1, bonus
+    loadn r5, #5       ; Valor do diamante
+    mul r5, r5, r1     ; Pontos = Valor * Bonus
+    load r7, pontos
+    add r7, r7, r5
+    store pontos, r7
+    jmp Finaliza_Comer
+
+Comer_Congelante:
+    ; Primeiro limpa o item da tela para não pegar de novo
+    load r5, r8        
+    loadn r7, #31      ; Espaço vazio
+    storei r5, r7      
+    outchar r7, r6     
+    ; SALVA REGISTRADORES CRÍTICOS
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    
+    ; AGORA CHAMA A FUNÇÃO MÁGICA
+    call CongelaJogo
+
+    ; Restaura os REGISTRADORES
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0    
+    jmp next_eat_check ; Continua checando outros itens ou sai
+Comer_Moeda:
+    ; SALVA O ESTADO DO LOOP ANTES DE IMPRIMIR
+    loadn r1, #100
+    load r7, pontos
+    add r7, r7, r1     ; Pontos += Bonus
+    store pontos, r7
+    
+    ; Atualiza Bonus
+    load r4, steps
+    loadn r5, #3
+    mod r4, r4, r5 ; Aumento = nºde passsos % 3 (resto da divisão por 3)   
+    loadn r2, #0
+    cmp r2,r4
+    jne continua_comer
+    loadn r4,#50
+    loadn r1,#1
+    continua_comer:
+        mul r4, r4, r1 ; Aumento = 100 * resto (0,1,2)   
+        store bonus, r4    
+
+
+Finaliza_Comer:
+    ; Apaga do Buffer e Tela
+    load r5, r8        ; Recupera endereço do MapBuffer
+    loadn r7, #31      ; Espaço vazio
+    storei r5, r7      ; Limpa RAM
+    outchar r7, r6     ; Limpa Tela
+    
+    ; Contabiliza
+    load r5, itens_coletados 
+    inc r5
+    store itens_coletados, r5
+    
+    call AtualizaHUD
+    
+    ; --- CHECA LIBERAÇÃO DA SAÍDA ---
+    ; Primeiro, verifica se JÁ estava liberada para não spammar
+    load r1, saida_liberada
+    loadn r7, #1
+    cmp r1, r7
+    jeq next_eat_check ; Já liberou, segue a vida
+
+    ; Se não liberou, verifica se atingiu a meta
+    call GetMoedasNivelAtual
+    load r1, min_moedas
+    cmp r5, r1
+    jle next_eat_check ; Se Coletados (r5) < Min (r1), continua (jle ou jlt dependendo da logica)
+    
+
+    ; Libera Saída
+    loadn r1, #1
+    store saida_liberada, r1
+    
+    ; Mostra mensagem (APENAS UMA VEZ)
+    loadn r0, #str_saida
+    loadn r1, #84
+    loadn r2, #2816
+    call ImprimeString
+    
 next_eat_check:
+    ;prepara para o proximo item que Comer
+    pop r2
+    pop r1
+    pop r0
     inc r2
     cmp r2, r3
     jne eat_loop
     
 eat_loop_end:
-    ;r8 = variavel
     pop r7
     pop r6
     pop r5
@@ -886,7 +1330,507 @@ eat_loop_end:
     pop r1
     pop r0
     rts
+
+
+; ---------------------------------------------------------
+; ExecutaTeletransporte (CORRIGIDA: FÍSICA + VISUAL)
+; Retorna R7: 1 (Confirmou), 0 (Cancelou)
+; ---------------------------------------------------------
+ExecutaTeletransporte:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    push r5
+    push r6
+    ; R7 é retorno
+
+    ; Avisa o jogador
+    loadn r0, #str_teleport
+    loadn r1, #42
+    loadn r2, #2816 ; Amarelo
+    call ImprimeString
+
+    ; --- 1. SALVA ESTADO INICIAL (BACKUP) ---
+    load r0, pos_ladrao
+    store teleport_backup_pos, r0
     
+    load r0, ladraoSprite
+    store teleport_backup_sprite, r0
+    
+    load r0, ladraoGapsPtr
+    store teleport_backup_gap, r0
+    
+    load r0, dir_ladrao
+    ; (Poderia salvar dir_backup aqui se quisesse, mas vamos manter simples)
+
+    ; --- 2. SINCRONIZAÇÃO INICIAL ---
+    ; Garante que o apagarladrao vai funcionar na primeira iteração
+    load r0, pos_ladrao
+    store pos_ant_ladrao, r0
+    load r0, ladraoGapsPtr
+    store ladraoGapsPtr_ant, r0
+
+Loop_Teleport:
+    call delay_teleport
+
+    load r1, tecla_atual
+    loadn r2, #255
+    cmp r1, r2
+    jeq Loop_Teleport 
+
+    ; --- CONFIRMAÇÃO (ESPAÇO) ---
+    loadn r2, #32 
+    cmp r1, r2
+    jeq Teleport_Confirmado
+
+    ; --- CANCELAMENTO (X) ---
+    loadn r2, #'x'
+    cmp r1, r2
+    jeq Teleport_Cancelado
+
+    ; --- MOVIMENTAÇÃO INTELIGENTE ---
+    ; R0 = Pos Candidata, R3 = Sprite, R4 = Gaps, R5 = Nova Direção
+    load r0, pos_ladrao       
+    
+    loadn r2, #'w'
+    cmp r1, r2
+    jeq Tenta_Mov_W
+    loadn r2, #'a'
+    cmp r1, r2
+    jeq Tenta_Mov_A
+    loadn r2, #'s'
+    cmp r1, r2
+    jeq Tenta_Mov_S
+    loadn r2, #'d'
+    cmp r1, r2
+    jeq Tenta_Mov_D
+    
+    jmp Loop_Teleport
+
+; --- CONFIGURAÇÃO DOS CANDIDATOS ---
+Tenta_Mov_W:
+    loadn r3, #ladrao_U       ; Sprite Cima
+    loadn r4, #ladraoGaps_V   ; Gap Vertical
+    loadn r5, #'w'            ; Nova Direção
+    
+    ; Tenta Direto
+    loadn r2, #40
+    sub r6, r0, r2            ; R6 = Candidato Principal
+    call Valida_Tele_Move     ; R7=1 se ok
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Tenta Assistência (Esquerda -1)
+    loadn r2, #1
+    sub r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Tenta Assistência (Direita +1 -> recupera e soma 2)
+    loadn r2, #2
+    add r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    jmp Loop_Teleport
+
+Tenta_Mov_S:
+    loadn r2, #ladrao_D       ; Sprite Baixo (Cuidado: verifique se ladrao_D é ponteiro ou valor direto no seu codigo)
+    mov r3, r2
+    loadn r4, #ladraoGaps_V   ; Gap Vertical
+    loadn r5, #'s'
+    
+    ; Tenta Direto
+    loadn r2, #40
+    add r6, r0, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Assistencia Esq
+    loadn r2, #1
+    sub r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Assistencia Dir
+    loadn r2, #2
+    add r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    jmp Loop_Teleport
+
+Tenta_Mov_A:
+    loadn r3, #ladrao_L
+    loadn r4, #ladraoGaps_H
+    loadn r5, #'a'
+    
+    ; Direto
+    loadn r2, #1
+    sub r6, r0, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Assistencia Cima (-40)
+    loadn r2, #40
+    sub r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Assistencia Baixo (+80 -> recupera e soma 2*40)
+    loadn r2, #80
+    add r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    jmp Loop_Teleport
+
+Tenta_Mov_D:
+    loadn r3, #ladrao_R
+    loadn r4, #ladraoGaps_H
+    loadn r5, #'d'
+    
+    ; Direto
+    loadn r2, #1
+    add r6, r0, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Assistencia Cima
+    loadn r2, #40
+    sub r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    
+    ; Assistencia Baixo
+    loadn r2, #80
+    add r6, r6, r2
+    call Valida_Tele_Move
+    loadn r2, #1
+    cmp r7, r2
+    jeq Aplica_Tele_Move
+    jmp Loop_Teleport
+
+
+; --- APLICAÇÃO DO MOVIMENTO ---
+Aplica_Tele_Move:
+    ; R6 = Nova Posição Confirmada
+    ; R3 = Novo Sprite
+    ; R4 = Novo Gap
+    ; R5 = Nova Direção
+
+    ; 1. Apaga Ladrão na Posição ANTIGA (usando as vars globais atuais)
+    ; Como pos_ant_ladrao foi sincronizada no fim do ultimo loop, isso apaga corretamente.
+    call apagarladrao
+    
+    ; 2. Atualiza Variáveis Globais
+    store pos_ladrao, r6
+    store ladraoSprite, r3
+    store ladraoGapsPtr, r4
+    store dir_ladrao, r5      ; <--- CRUCIAL: Atualiza a direção!
+    
+    ; 3. Desenha na NOVA posição
+    mov r0, r3 ; Sprite
+    mov r1, r4 ; Gap
+    mov r2, r6 ; Pos
+    call printladrao
+    
+    ; 4. Sincroniza _ant para o próximo ciclo
+    ; Se o jogador apertar outra tecla, o apagarladrao vai usar estes valores
+    store pos_ant_ladrao, r6
+    store ladraoGapsPtr_ant, r4
+    
+    ; 5. Limpa Tecla e Repete
+    loadn r1, #255
+    store tecla_atual, r1
+    jmp Loop_Teleport
+
+
+Teleport_Confirmado:
+    loadn r7, #1
+    jmp Sai_Teleport
+
+Teleport_Cancelado:
+    ; Apaga o fantasma atual
+    call apagarladrao
+    
+    ; Restaura Backup
+    load r0, teleport_backup_pos
+    store pos_ladrao, r0
+    store pos_ant_ladrao, r0
+    
+    load r0, teleport_backup_sprite
+    store ladraoSprite, r0
+    
+    load r0, teleport_backup_gap
+    store ladraoGapsPtr, r0
+    store ladraoGapsPtr_ant, r0
+    
+    ; Redesenha original
+    load r0, ladraoSprite
+    load r1, ladraoGapsPtr
+    load r2, pos_ladrao
+    call printladrao
+    
+    loadn r7, #0
+    jmp Sai_Teleport
+
+Sai_Teleport:
+    ; Limpa HUD
+    loadn r0, #str_clear
+    loadn r1, #42
+    loadn r2, #0
+    call ImprimeString
+    
+    loadn r1, #255
+    store tecla_atual, r1
+    
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; --- SUBROTINA AUXILIAR: Valida Movimento ---
+; Entrada: R6 (Pos Candidata), R4 (Gap Candidato)
+; Saída: R7 (1=Ok, 0=Erro)
+Valida_Tele_Move:
+    push r0
+    push r2
+    
+    ; Limites de Tela
+    loadn r2, #0
+    cmp r6, r2
+    jle VTM_Fail
+    loadn r2, #1199
+    cmp r6, r2
+    jgr VTM_Fail
+    
+    ; Paredes (CheckMoveValido)
+    ; CheckMoveValido espera: R0=Pos, R2=Gap
+    mov r0, r6
+    mov r2, r4
+    call CheckMoveValido ; Retorna R7=1 se livre
+    
+    ; Se CheckMoveValido retornou 0, falhou
+    loadn r2, #0
+    cmp r7, r2
+    jeq VTM_Fail
+    
+    ; (Opcional) Checa colisão com policia aqui se quiser evitar TP em cima
+    
+    loadn r7, #1
+    jmp VTM_End
+    
+VTM_Fail:
+    loadn r7, #0
+VTM_End:
+    pop r2
+    pop r0
+    rts
+    
+; Delay curto especifico para menus/teleporte
+delay_teleport:
+    push r0
+    push r1
+    loadn r0, #10
+dt_loop1:
+    loadn r1, #1000
+dt_loop2:
+    dec r1
+    jnz dt_loop2
+    dec r0
+    jnz dt_loop1
+    
+    ; Leitura de tecla não bloqueante dentro do delay
+    inchar r0
+    loadn r1, #255
+    cmp r0, r1
+    jeq dt_fim
+    store tecla_atual, r0
+dt_fim:
+    pop r1
+    pop r0
+    rts
+
+
+
+;Funcao de congelar o jogo para  o policial
+CongelaJogo:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+
+    ; --- SELEÇÃO DA MENSAGEM ---
+    load r3, nivel_atual    ; Carrega o nível atual para R3
+    
+    loadn r4, #1
+    cmp r3, r4
+    jeq Prep_Msg1           ; Se nivel == 1, carrega string 1
+    
+    loadn r4, #2
+    cmp r3, r4
+    jeq Prep_Msg2           ; Se nivel == 2, carrega string 2
+    
+    loadn r4, #3
+    cmp r3, r4
+    jeq Prep_Msg3           ; Se nivel == 3, carrega string 3
+    
+    ; Se chegou aqui, é nivel 4
+    loadn r0, #str_freeze_lvl4
+    jmp Imprime_Freeze
+
+Prep_Msg1:
+    loadn r0, #str_freeze_lvl1
+    jmp Imprime_Freeze
+Prep_Msg2:
+    loadn r0, #str_freeze_lvl2
+    jmp Imprime_Freeze
+Prep_Msg3:
+    loadn r0, #str_freeze_lvl3
+    jmp Imprime_Freeze
+
+Imprime_Freeze:
+    loadn r1, #42       ; Posição na tela
+    loadn r2, #2816     ; Cor Amarela
+    call ImprimeString
+
+    ; --- LOOP DE ESPERA E VALIDAÇÃO ---
+LoopCongela:
+    inchar r0
+    loadn r1, #255
+    cmp r0, r1
+    jeq LoopCongela     ; Nenhuma tecla apertada
+
+    ; --- VERIFICAÇÃO DAS TECLAS ---
+    
+    ; Tecla '1' (Sempre válida em todos os níveis)
+    loadn r1, #'1'
+    cmp r0, r1
+    jeq MatarP0
+
+    ; Tecla '2' (Só aceita se Nivel >= 2)
+    loadn r1, #'2'
+    cmp r0, r1
+    jeq TentaMatarP1
+    
+    ; Tecla '3' (Só aceita se Nivel >= 3)
+    loadn r1, #'3'
+    cmp r0, r1
+    jeq TentaMatarP2
+    
+    ; Tecla '4' (Só aceita se Nivel >= 4)
+    loadn r1, #'4'
+    cmp r0, r1
+    jeq TentaMatarP3
+
+    ; Tecla inválida, volta pro loop
+    jmp LoopCongela
+
+; --- VALIDAÇÕES DE NÍVEL ---
+TentaMatarP1:
+    load r3, nivel_atual
+    loadn r4, #2
+    cmp r3, r4
+    jle LoopCongela     ; Se Nivel < 2, ignora tecla '2'
+    jmp MatarP1
+
+TentaMatarP2:
+    load r3, nivel_atual
+    loadn r4, #3
+    cmp r3, r4
+    jle LoopCongela     ; Se Nivel < 3, ignora tecla '3'
+    jmp MatarP2
+
+TentaMatarP3:
+    load r3, nivel_atual
+    loadn r4, #4
+    cmp r3, r4
+    jle LoopCongela     ; Se Nivel < 4, ignora tecla '4'
+    jmp MatarP3
+
+; --- EXECUÇÃO ---
+MatarP0:
+    loadn r0, #0
+    jmp FinalizaCongelamento
+MatarP1:
+    loadn r0, #1
+    jmp FinalizaCongelamento
+MatarP2:
+    loadn r0, #2
+    jmp FinalizaCongelamento
+MatarP3:
+    loadn r0, #3
+    jmp FinalizaCongelamento
+
+FinalizaCongelamento:
+    ; R0 já tem o índice correto vindo dos jumps anteriores
+    call EliminaPolicialEspecifico
+    
+
+    loadn r0, #MapBuffer
+    call printCenario   ; Redesenha o mapa limpo e correto
+    
+    ; Retorna o HUD normal
+    call AtualizaHUD
+
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+;EliminaPolicialEspecifico - mata o policial que o jogador escolheu
+EliminaPolicialEspecifico:
+    push r0
+    push r1
+    push r2
+    
+    store temp_indice, r0
+    
+    ; 1. Apaga o policial visualmente da posição atual
+    call apagarpolicia
+    
+    ; 2. Joga ele para fora do mapa
+    loadn r1, #1    ; diz que aquele policial está fora do jogo
+    
+    loadn r2, #morto_policia
+    add r2, r2, r0
+    storei r2, r1      
+         
+    
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+
 ;Funcao de vitoria do nivel
 VitoriaNivel:
     ;Passa para o próximo nível
@@ -902,36 +1846,63 @@ VitoriaNivel:
     
     ; Reseta variáveis para o novo nível
     loadn r0, #0
-    store pontos, r0  ; Zera pontos (ou mantenha se quiser acumular)
+    store itens_coletados, r0 
+    store saida_liberada, r0
     
     ; Carrega as novas moedas necessárias
     call GetMoedasNivelAtual
     
+    ; Limpa a tela visualmente antes de carregar o próximo mapa
+    call LimpaTela
+    call just_wait
     ; Sai da função para recarregar o nível
     jmp ProximoNivel
     
 VitoriaFinal:
-    halt  ; apenas para
+    ; --- IMPRIME TELA DE VITÓRIA ---
+    loadn R0, #WinScreen
+    call printCenario
     
-ProximoNivel:
-    ; Esta label será usada no main
-    ; A execução volta para round_game
-    pop r7
-    pop r6
-    pop r5
-    pop r4
-    pop r3
-    pop r2
-    pop r1
-    pop r0
+    ; --- IMPRIME O SCORE ---
+    load r0, pontos
+    loadn r1, #773 ; Posição ao lado de SCORE
+    call ImprimeNumero
+    
+Wait_Win_Input:
+    call delay
+    load r0, tecla_atual
+    
+    ; Opção 1: ENTER -> HALT
+    loadn r1, #13
+    cmp r0, r1
+    jeq Acabou
+    
+    ; Opção 2: X -> REINICIAR DO NIVEL 1 (SEM MENU/REGRAS)
+    loadn r1, #'x'
+    cmp r0, r1
+    jeq Restart_Fast
+    
+    jmp Wait_Win_Input
+
+Restart_Fast:
+    ; Reinicializa variáveis
+    call inicializa_var
+    
+    ; Força nível 1
+    loadn r0, #1
+    store nivel_atual, r0
+    
+    ; Pula direto para o carregamento do cenário, ignorando loop_ini
+    jmp round_game
+    
+ProximoNivel:    
+    
     jmp round_game  ; Volta para recarregar o cenário
 
 
-; ---------------------------------------------------------------------
-; --- SEÇÃO DE lógica  DA POLÍCIA 
-; ---------------------------------------------------------------------
-
-; "Cérebro" da Polícia. Decide o que fazer.
+; ==========================================================
+; IA DE EQUIPE (CÉREBRO)
+; ==========================================================
 CalculaPosPolicia:
     push r0
     push r1
@@ -942,80 +1913,207 @@ CalculaPosPolicia:
     push r6
     push r7
     
-    ; 1. Salva estados antigos
-    load r0, pos_policia
-    store pos_ant_policia, r0
-    load r0, policiaGapsPtr
-    store policiaGapsPtr_ant, r0
+    load r0, temp_indice
     
-    ; 2. Define o Target (o jogador)
-    load r0, pos_ladrao
-    store pos_target, r0
+    ; Carrega posição atual para variável temporária
+    loadn r1, #pos_policia
+    add r1, r1, r0
+    loadi r6, r1
+    store pos_policiaant, r6
+    
+    ; Carrega direção atual
+    loadn r1, #policia_dir
+    add r1, r1, r0
+    loadi r2, r1
+    store dir_policiaant, r2
+    
+    ; --- SELEÇÃO DE ESTRATÉGIA ---
+    call SelectTarget  ; Define pos_target ou (x_target, y_target)
+    
+    loadn r5, #40 ; Largura da tela
+    
+    ; --- AVALIAÇÃO DE DIREÇÕES (A, W, S, D) ---
+    
+    ; --- ESQUERDA ('a') ---
+    mov r4, r6
+    dec r4
+    store pos_policiaant_a, r4
+    call Policia_checkCenario ; Checa paredes E outras polícias
+    load r1, ehParede
+    loadn r2, #0
+    cmp r1, r2
+    jne Bloqueia_A
+    
+    mod r0, r4, r5 ; x
+    div r1, r4, r5 ; y
+    call calculaDistToTarget ; Usa x_target/y_target definidos em SelectTarget
+    load r7, dist_dir
+    store dist_a, r7
+    jmp Check_W
+Bloqueia_A:
+    loadn r7, #30000
+    store dist_a, r7
+    
+    ; --- CIMA ('w') ---
+Check_W:
+    mov r4, r6
+    sub r4, r4, r5
+    store pos_policiaant_w, r4      ;mesma funcao que a checagem da esquerda
+    call Policia_checkCenario
+    load r1, ehParede
+    loadn r2, #0
+    cmp r1, r2
+    jne Bloqueia_W
+    
+    mod r0, r4, r5
+    div r1, r4, r5
+    call calculaDistToTarget
+    load r7, dist_dir
+    store dist_w, r7
+    jmp Check_S
+Bloqueia_W:
+    loadn r7, #30000
+    store dist_w, r7
 
-    ; 3. Carrega estado atual da polícia nas vars da IA
-    load r0, dir_policia
+    ; --- BAIXO ('s') ---
+Check_S:
+    mov r4, r6
+    add r4, r4, r5
+    store pos_policiaant_s, r4
+    call Policia_checkCenario
+    load r1, ehParede
+    loadn r2, #0
+    cmp r1, r2
+    jne Bloqueia_S
+    
+    mod r0, r4, r5
+    div r1, r4, r5
+    call calculaDistToTarget
+    load r7, dist_dir
+    store dist_s, r7
+    jmp Check_D
+Bloqueia_S:
+    loadn r7, #30000
+    store dist_s, r7
+
+    ; --- DIREITA ('d') ---
+Check_D:
+    mov r4, r6
+    inc r4
+    store pos_policiaant_d, r4
+    call Policia_checkCenario
+    load r1, ehParede
+    loadn r2, #0
+    cmp r1, r2
+    jne Bloqueia_D
+    
+    mod r0, r4, r5
+    div r1, r4, r5
+    call calculaDistToTarget
+    load r7, dist_dir
+    store dist_d, r7
+    jmp Decide_Dir
+Bloqueia_D:
+    loadn r7, #30000
+    store dist_d, r7
+    
+Decide_Dir:
+    ; Algoritmo Guloso: Escolhe a menor distância calculada
+    loadn r0, #'a'
     store dir_policiaant, r0
-    load r0, pos_policia
-    store pos_policiaant, r0
-    load r0, est_policia
-    store est_policiaant, r0
+    load r1, pos_policiaant_a
+    store pos_policiaant, r1
+    load r2, dist_a
     
-    ; 4. Chama a IA principal
-    call Policia_CalculaPos
-
-    ; 5. Recupera os resultados da IA
-    load r0, est_policiaant
-    store est_policia, r0
-    load r1, pos_policiaant       ; r1 = nova posição
-    store pos_policia, r1
-    load r2, dir_policiaant       ; r2 = nova direção ('w','a','s','d')
-    store dir_policia, r2
-
-   ; 6. Seleciona opolicia Sprites/Gaps corretos para a nova direção
-    loadn r3, #'a'
+    load r3, dist_w
+    cmp r3, r2
+    jgr Comp_S
+    loadn r0, #'w'
+    store dir_policiaant, r0
+    load r1, pos_policiaant_w
+    store pos_policiaant, r1
+    mov r2, r3
+    
+Comp_S:
+    load r3, dist_s
+    cmp r3, r2
+    jgr Comp_D
+    loadn r0, #'s'
+    store dir_policiaant, r0
+    load r1, pos_policiaant_s
+    store pos_policiaant, r1
+    mov r2, r3
+    
+Comp_D:
+    load r3, dist_d
+    cmp r3, r2
+    jgr Aplica_Movimento
+    loadn r0, #'d'
+    store dir_policiaant, r0
+    load r1, pos_policiaant_d
+    store pos_policiaant, r1
+    
+Aplica_Movimento:
+    loadn r3, #30000
     cmp r2, r3
-    jne Policia_checa_w
-    loadn r5, #policia_L
-    loadn r6, #policiaGaps_H
-    jmp Policia_desenha
+    jeq Fim_CalculaPosPolicia ; Preso, não move
     
- Policia_checa_w:
-    loadn r3, #'w'
-    cmp r2, r3
-    jne Policia_checa_s
-    
-    loadn r5, #policia_U
-    loadn r6, #policiaGaps_V
-    jmp Policia_desenha
-    
-Policia_checa_s:
-    
-    loadn r3, #'s'
-    cmp r2, r3
-    jne Policia_checa_d
-    
-    loadn r5, #policia_D
-    loadn r6, #ladraoGaps_V
-    jmp Policia_desenha
-    
-Policia_checa_d:
-    loadn r5, #policia_R
-    loadn r6, #policiaGaps_H
-    
-
-Policia_desenha:
-    store policiaSprite, r5
-    store policiaGapsPtr, r6
-    
-    ; 7. Chama funções de apagar/desenhar
+    ; 1. Apaga na posição velha
     call apagarpolicia
     
-    mov r0, r5 ; Arg 0: &policiaSprite
-    mov r2, r1 ; Arg 2: pos_policia (sim, r1 = pos_fant, então r1=r2)
-    mov r1, r6 ; Arg 1: &policiaGapsPtr
-     
+    ; 2. Atualiza Vetores
+    load r0, temp_indice
+    load r1, pos_policiaant
+    loadn r2, #pos_policia
+    add r2, r2, r0
+    storei r2, r1
+    
+    load r1, dir_policiaant
+    loadn r2, #policia_dir
+    add r2, r2, r0
+    storei r2, r1
+    
+    ; 3. Define Sprite e Gaps
+    loadn r3, #'a'
+    cmp r1, r3
+    jne Set_W
+    loadn r5, #policia_L
+    loadn r6, #policiaGaps_H
+    jmp Store_Sprite
+Set_W:
+    loadn r3, #'w'
+    cmp r1, r3
+    jne Set_S
+    loadn r5, #policia_U
+    loadn r6, #policiaGaps_V
+    jmp Store_Sprite
+Set_S:
+    loadn r3, #'s'
+    cmp r1, r3
+    jne Set_D
+    loadn r5, #policia_D
+    loadn r6, #policiaGaps_V
+    jmp Store_Sprite
+Set_D:
+    loadn r5, #policia_R
+    loadn r6, #policiaGaps_H
+
+Store_Sprite:
+    loadn r2, #policia_sprite
+    add r2, r2, r0
+    storei r2, r5
+    
+    loadn r2, #policia_gaps
+    add r2, r2, r0
+    storei r2, r6
+    
+    ; 4. Desenha na Nova Posição
+    mov r0, r5 ; sprite
+    mov r1, r6 ; gaps
+    load r2, pos_policiaant ; pos
     call printladrao
     
+Fim_CalculaPosPolicia:
     pop r7
     pop r6
     pop r5
@@ -1025,6 +2123,255 @@ Policia_desenha:
     pop r1
     pop r0
     rts
+
+; ------------------------------------------------
+; SELEÇÃO DE ALVO (TÁTICAS DE EQUIPE)
+; ------------------------------------------------
+SelectTarget:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    push r5
+    
+    load r0, temp_indice
+    loadn r5, #40 ; Largura
+
+    ; Switch Case para o Índice da Polícia
+    loadn r1, #0
+    cmp r0, r1
+    jeq Target_Carro0
+    
+    loadn r1, #1
+    cmp r0, r1
+    jeq Target_Carro1
+    
+    loadn r1, #2
+    cmp r0, r1
+    jeq Target_Carro2
+    
+    loadn r1, #3
+    cmp r0, r1
+    jeq Target_Carro3
+    
+    jmp Target_Default ; Fallback
+
+Target_Carro0:
+
+    ; === CARRO 0  ===
+    ; Alvo: Posição Exata do Ladrão
+    load r1, pos_ladrao
+    
+    ; Converte para X,Y para consistência
+    mod r2, r1, r5 ; x
+    div r3, r1, r5 ; y
+    store x_target, r2
+    store y_target, r3
+    loadn r1, #1
+    store target_eh_xy, r1
+    jmp End_SelectTarget
+
+Target_Carro1:
+
+    ; === CARRO 1  ===
+    ; Alvo: 2 Posições À FRENTE do Ladrão
+    
+    ; Pega X,Y do ladrão
+    load r1, pos_ladrao
+    mod r2, r1, r5 ; x
+    div r3, r1, r5 ; y
+    
+    load r4, dir_ladrao
+    
+    ; Aplica Offset baseado na direção
+    loadn r1, #'a'
+    cmp r4, r1
+    jne T1_TryW
+    loadn r1, #2
+    sub r2, r2, r1 ; x - 2
+    jmp T1_Save
+T1_TryW:
+    loadn r1, #'w'
+    cmp r4, r1
+    jne T1_TryS
+    loadn r1, #2
+    sub r3, r3, r1 ; y - 2
+    jmp T1_Save
+T1_TryS:
+    loadn r1, #'s'
+    cmp r4, r1
+    jne T1_TryD
+    loadn r1, #2
+    add r3, r3, r1 ; y + 2
+    jmp T1_Save
+T1_TryD:
+    ; Default ou 'd'
+    loadn r1, #2
+    add r2, r2, r1 ; x + 2
+
+T1_Save:
+    store x_target, r2
+    store y_target, r3
+    loadn r1, #1
+    store target_eh_xy, r1
+    
+    ; Salva este alvo para o Carro 3 usar!
+    ; (Reconverte para linear só para guardar em target_carro1 se precisar, 
+    ; mas vamos guardar X e Y em variaveis auxiliares se precisasse. 
+    ; Aqui vamos recalcular no Carro 3 para garantir)
+    ; Para simplificar a comunicação, vou salvar o alvo linear em target_carro1
+    ; alvo = y*40 + x
+    mul r1, r3, r5
+    add r1, r1, r2
+    store target_carro1, r1
+    
+    jmp End_SelectTarget
+
+Target_Carro2:
+    ; === CARRO 3  - ESTRATÉGIA: O ESPELHO ===
+    ; Tática: Cercar o jogador indo para a coordenada X oposta.
+    ; Isso força o jogador a mudar de linha ou ser encurralado.
+    
+    ; 1. Pega a posição do ladrão
+    load r1, pos_ladrao
+    
+    ; 2. Converte para X e Y
+    ; R5 já contém 40 (carregado no início da função SelectTarget)
+    mod r2, r1, r5      ; r2 = X do Ladrão
+    div r3, r1, r5      ; r3 = Y do Ladrão
+    
+    ; 3. Calcula o X Espelhado (Target X = 39 - Ladrao X)
+    ; Como a tela tem largura 40 (0 a 39), isso inverte o lado.
+    loadn r4, #39
+    
+    ; Verifica segurança para não subtrair se r2 > 39 (bug prevention)
+    cmp r2, r4
+    jgr T2_Failsafe     ; Se X > 39, usa fallback
+    
+    sub r0, r4, r2      ; r0 = 39 - X_Ladrao
+    
+    ; 4. Define os Alvos
+    store x_target, r0  ; Alvo X invertido
+    store y_target, r3  ; Alvo Y igual ao do ladrão
+    
+    ; 5. Ativa flag para a IA saber que estamos usando X,Y e não pos linear
+    loadn r1, #1
+    store target_eh_xy, r1
+    
+    jmp End_SelectTarget
+
+T2_Failsafe:
+    ; Se houver algum erro de cálculo, persegue o ladrão normalmente
+    loadn r0, #0
+    store target_eh_xy, r0
+    store pos_target, r1 ; r1 ainda tem pos_ladrao
+    jmp End_SelectTarget
+
+Target_Carro3:
+    
+    ; === CARRO 3  ===
+    ; Alvo: Vetor baseado no Carro 0 e Alvo do Carro 1
+    ; Fórmula: Target = Pivot + 2 * (Ref - Pivot)
+    ; Simplificado: Target = 2*Ref - Pivot
+    ; Onde Ref = Alvo do Carro 1 (target_carro1)
+    ; Onde Pivot = Posição do Carro 0 (Líder)
+    
+    ; Pega Posição Carro 0 (Pivot)
+    loadn r1, #pos_policia
+    loadn r2, #0
+    add r1, r1, r2
+    loadi r1, r1 ; pos linear carro 0
+    
+    mod r2, r1, r5 ; Px (Pivot X)
+    div r3, r1, r5 ; Py (Pivot Y)
+    
+    ; Pega Alvo Carro 1 (Ref) - Calculado anteriormente ou recalculado
+    ; Vamos usar a var target_carro1 que salvamos no T1
+    load r4, target_carro1
+    mod r0, r4, r5 ; Rx (Ref X)
+    div r1, r4, r5 ; Ry (Ref Y)
+    
+    ; Tx = 2*Rx - Px
+    add r0, r0, r0 ; 2*Rx
+    sub r0, r0, r2 ; - Px
+    store x_target, r0
+    
+    ; Ty = 2*Ry - Py
+    add r1, r1, r1 ; 2*Ry
+    sub r1, r1, r3 ; - Py
+    store y_target, r1
+    
+    loadn r1, #1
+    store target_eh_xy, r1
+    jmp End_SelectTarget
+
+Target_Default:
+    ; Fallback: Persegue ladrão
+    load r1, pos_ladrao
+    store pos_target, r1
+    loadn r1, #0
+    store target_eh_xy, r1
+
+End_SelectTarget:
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; ------------------------------------------------
+; Calcula Distância (Suporta Coordenadas Negativas)
+; ------------------------------------------------
+calculaDistToTarget:
+    push r2
+    push r3
+    push r4
+    push r5
+    push r6
+    
+    ; R0 = x candidato, R1 = y candidato
+    
+    ; Se flag XY ativa, usa vars, senao converte pos_target
+    load r6, target_eh_xy
+    loadn r5, #1
+    cmp r6, r5
+    jeq Dist_Use_XY
+    
+    ; Converte pos_target linear
+    load r4, pos_target
+    loadn r5, #40
+    mod r2, r4, r5 ; x target
+    div r3, r4, r5 ; y target
+    jmp Dist_Calc_Start
+
+Dist_Use_XY:
+    load r2, x_target
+    load r3, y_target
+
+Dist_Calc_Start:
+    ; dx = (x - x_t)
+    sub r4, r0, r2
+    
+    ; Quadrado (r4 * r4) elimina sinal negativo
+    mul r4, r4, r4
+    
+    ; dy = (y - y_t)
+    sub r5, r1, r3
+    mul r5, r5, r5
+    
+    add r4, r4, r5 ; dist^2
+    store dist_dir, r4
+    
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    rts
+
 
 ; Função genérica para apagar a polícia
 apagarpolicia:
@@ -1036,11 +2383,21 @@ apagarpolicia:
   push R5
   push R6
   
-  call GetCenarioAtual
-  load R1, policiaGapsPtr_ant
-  load R2, pos_ant_policia
-  loadn R3, #6 ;tamanho
-  loadn R4, #0 ;i
+  loadn R0, #MapBuffer
+  load R4, temp_indice ; Guarda qual policia vai ser eliminada
+  
+  ; Carrega Gaps Antigos do Array
+  loadn R1, #policia_gaps_ant
+  add R1, R1, R4
+  loadi R1, R1
+  
+  ; Carrega Posição Antiga do Array
+  loadn R2, #pos_ant_policia
+  add R2, R2, R4
+  loadi R2, R2
+  
+  loadn R3, #6
+  loadn R4, #0
   
   apagarpoliciaLoop:
     add R5,R1,R4
@@ -1065,58 +2422,166 @@ apagarpolicia:
   rts
 
 
+DesenhaTodasPolicias:
+    push r0
+    push r1
+    push r2
+    push r3
+    
+    loadn r0, #0
+    load r1, nivel_atual
+    
+Loop_Draw_Init:
+    cmp r0, r1
+    jeq End_Draw_Init
+    
+    ; Carrega Sprite
+    loadn r2, #policia_sprite
+    add r2, r2, r0
+    loadi r2, r2
+    mov r3, r0 ; salva i
+    mov r0, r2 ; r0 = sprite
+    
+    ; Carrega Gaps
+    loadn r2, #policia_gaps
+    add r2, r2, r3
+    loadi r1, r2 ; r1 = gaps
+    
+    ; Carrega Pos
+    loadn r2, #pos_policia
+    add r2, r2, r3
+    loadi r2, r2 ; r2 = pos
+    
+    call printladrao ; Usa a mesma rotina de print genérica
+    
+    mov r0, r3 ; restaura i
+    inc r0
+    jmp Loop_Draw_Init
+    
+End_Draw_Init:
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+
 ; ---------------------------------------------------------------------
-; CheckPlayerPoliceCollision
-; Checa se o ladrão colidiu com a polícia
+; CheckPlayerPoliceCollision (CORRIGIDA E COMPLETA)
+; Checa colisão de TODOS os tiles do Ladrão com TODOS os tiles das Polícias
 ; ---------------------------------------------------------------------
 CheckPlayerPoliceCollision:
-    push r0 ; pos_ladrao
-    push r1 ; &ladraoGapsPtr
-    push r2 ; pos_policia
-    push r3 ; loop counter
-    push r4 ; max loop (6)
-    push r5 ; offset
-    push r6 ; pos_tile_ladrao
+    push r0 ; Indice Policia / Contador Player Tile
+    push r1 ; Limite Policias / Contador Policia Tile
+    push r2 ; Pos Policia Base
+    push r3 ; Gaps Policia Ptr
+    push r4 ; Pos Ladrao Base
+    push r5 ; Gaps Ladrao Ptr
+    push r6 ; Temp / Limite 6
+    push r7 ; Pos Absoluta Ladrao Tile
 
-    loadn r4, #6
+    load r4, pos_ladrao
+    load r5, ladraoGapsPtr
     
-    ; --- PARTE 1: Checa 6 tiles do LADRÃO vs. Origem da POLÍCIA ---
-    load r0, pos_ladrao
-    load r1, ladraoGapsPtr
-    load r2, pos_policia
-    loadn r3, #0 ; i = 0
+    loadn r0, #0           ; Índice Policia = 0
+    load r1, total_policiasatv   ; Limite = Nível Atual
 
-Ladrao_check_loop:
-    add r5, r1, r3  ; r5 = &gaps[i]
-    loadi r5, r5    ; r5 = gaps[i] (offset)
-    add r6, r0, r5  ; r6 = pos_ladrao + offset
-    
-    cmp r6, r2      ; Compara pos_tile_ladrao com pos_policia
-    jeq PerdeuVida
-    
-    inc r3
-    cmp r3, r4
-    jne Ladrao_check_loop
+Loop_Police_List:
+    cmp r0, r1
+    jeq End_Check         ; Se checou todos os policiais ativos, sai
 
-    ; --- PARTE 2: Checa 6 tiles da POLÍCIA vs. Origem do LADRÃO ---
-    load r0, pos_policia
-    load r1, policiaGapsPtr
-    load r2, pos_ladrao
-    loadn r3, #0 ; i = 0
+    ; --- VERIFICA SE ESTÁ MORTO ---
+    loadn r2, #morto_policia
+    add r2, r2, r0
+    loadi r2, r2           ; R2 = Status (0=Vivo, 1=Morto)
     
-Policia_check_loop:
-    add r5, r1, r3  ; r5 = &gaps[i]
-    loadi r5, r5    ; r5 = gaps[i] (offset)
-    add r6, r0, r5  ; r6 = pos_policia + offset
+    loadn r3, #1
+    cmp r2, r3             ; Compara Status com 1 (Morto)
+    jeq Next_Police        ; Se for 1 (Morto), PULA a verificação (não mata)
     
-    cmp r6, r2      ; Compara pos_tile_policia com pos_ladrao
-    jeq PerdeuVida
+    ; --- Carrega dados da Polícia[i] ---
+    loadn r2, #pos_policia
+    add r2, r2, r0
+    loadi r2, r2           ; R2 = Posição Base da Polícia
     
-    inc r3
-    cmp r3, r4
-    jne Policia_check_loop
+    loadn r3, #policia_gaps
+    add r3, r3, r0
+    loadi r3, r3           ; R3 = Ponteiro de Gaps da Polícia
 
-    ; Se não colidiu
+    ; --- OTIMIZAÇÃO (Bounding Box Simples) ---
+    ; Se estiverem muito longe (>80), nem checa os tiles
+    push r4
+    push r6
+    sub r6, r4, r2         ; Delta = Ladrao - Policia
+    ; Abs(Delta)
+    loadn r7, #0
+    cmp r6, r7
+    jgr pos_diff_ok
+    loadn r7, #0
+    add r6, r7, r6
+pos_diff_ok:
+    loadn r7, #85
+    cmp r6, r7
+    pop r6
+    pop r4
+    jgr Next_Police       ; Longe demais, próxima polícia
+
+    ; --- COLISÃO FINA (6x6 Tiles) ---
+    ; Salva contadores do loop externo na pilha para usar R0 e R1
+    push r0 
+    push r1
+    
+    loadn r0, #0           ; i = 0 (Tile do Ladrão)
+    
+    Loop_Player_Tiles:
+        loadn r6, #6
+        cmp r0, r6
+        jeq End_Player_Tiles ; Acabou tiles do ladrão?
+        
+        ; Calcula Posição Absoluta do Tile do Ladrão -> R7
+        add r7, r5, r0     ; &ladraoGaps[i]
+        loadi r7, r7       ; offset
+        add r7, r7, r4     ; R7 = Pos Absoluta Ladrão
+
+        loadn r1, #0       ; j = 0 (Tile da Polícia)
+        
+        Loop_Police_Tiles:
+            cmp r1, r6
+            jeq Next_P_Tile ; Acabou tiles dessa polícia?
+            
+            ; Calcula Posição Absoluta do Tile da Polícia -> R6
+            ; (Reusamos R6 momentaneamente)
+            add r6, r3, r1   ; &policiaGaps[j]
+            loadi r6, r6     ; offset
+            add r6, r6, r2   ; R6 = Pos Absoluta Polícia
+            
+            cmp r7, r6       ; BATEU? (Tile Ladrão == Tile Polícia)
+            jeq Collision_Found
+            
+            inc r1
+            loadn r6, #6     ; Restaura constante 6
+            jmp Loop_Police_Tiles
+            
+    Next_P_Tile:
+        inc r0
+        jmp Loop_Player_Tiles
+
+    End_Player_Tiles:
+        ; Restaura contadores do loop externo
+        pop r1
+        pop r0
+        
+Next_Police:
+    inc r0
+    jmp Loop_Police_List
+
+Collision_Found:
+    ; Limpa a sujeira da pilha (os contadores r1, r0 do loop interno)
+    pop r1
+    pop r0
+    jmp PerdeuVida
+
+End_Check:
     jmp Collision_end
 
 PerdeuVida:
@@ -1125,8 +2590,8 @@ PerdeuVida:
     dec r0
     store vidas, r0
     
-    ; 2. Atualiza o HUD para mostrar a vida perdida
-    call AtualizaHUD 
+    ; 2. Atualiza o HUD -> no main loop
+    ;call AtualizaHUD 
     
     ; 3. Verifica se acabou (Vidas == 0)
     loadn r1, #0
@@ -1134,14 +2599,65 @@ PerdeuVida:
     jeq GameOverReal
 
     ; 4. Se ainda tem vidas, Reinicia o Round
-    call inicializa_var
-    call round_game
+    ; IMPORTANTE: Use call ResetRound em vez de reiniciar tudo se quiser manter o progresso
+    ; Se quiser reiniciar o nível do zero, use inicializa_var + round_game
+    
+    call ResetRound_perdeu 
     jmp Collision_end
     
 GameOverReal:
-    halt ; Para o jogo, como você pediu
+    ; Limpa a pilha (pop nos registradores que estavam salvos em CheckPlayerPoliceCollision)
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+
+    ; --- IMPRIME TELA DE DERROTA ---
+    loadn R0, #LoseScreen
+    call printCenario
+    
+    ; --- IMPRIME O SCORE ---
+    load r0, pontos
+    loadn r1, #773
+    call ImprimeNumero
+
+Wait_Lose_Input:
+    call delay ; Usa delay para ler teclado
+    load r0, tecla_atual
+    
+    ; Opção 1: PRESS ENTER TO QUIT
+    loadn r1, #13 ; Enter
+    cmp r0, r1
+    jeq Acabou
+    
+    ; Opção 2: PRESS X TO PLAY AGAIN
+    loadn r1, #'x'
+    cmp r0, r1
+    jeq Restart_Game_Full
+    
+    jmp Wait_Lose_Input
+
+Restart_Game_Full:
+    ; Reinicia o jogo do zero (passando pelo menu novamente)
+    jmp main
+    
+ResetRound_perdeu:
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    call round_game
     
 Collision_end:
+    pop r7
     pop r6
     pop r5
     pop r4
@@ -1150,6 +2666,10 @@ Collision_end:
     pop r1
     pop r0
     rts
+    
+Acabou:
+halt
+
 
 ; ---------------------------------------------------------------------
 ; ResetRound
@@ -1157,56 +2677,21 @@ Collision_end:
 ; ---------------------------------------------------------------------
 ResetRound:
     push r0
-    push r1
-    push r2
-    push r3
+    call ResetPosicoesPorNivel
 
-    ; Apaga os carros das posições atuais (onde bateram)
-    call apagarladrao
-    call apagarpolicia
-
-    ; Restaura Ladrão para o Início
-    loadn r0, #490
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #ladraoGaps_H
-    store ladraoGapsPtr, r0
-    store ladraoGapsPtr_ant, r0
-    loadn r0, #0
-    store dir_ladrao, r0
-    loadn r0, #ladrao_R
-    store ladraoSprite, r0
-
-    ; Restaura Polícia para o Início
-    loadn r0, #1020
-    store pos_policia, r0
-    store pos_ant_policia, r0
-    loadn r0, #policiaGaps_H
-    store policiaGapsPtr, r0
-    store policiaGapsPtr_ant, r0
-    loadn r0, #0
-    store dir_policia, r0
-    loadn r0, #policia_R
-    store policiaSprite, r0
-
+    call limpa_loop
+    
     ; Pequeno delay para o jogador perceber que morreu
     call delay
     call delay
     
-    ; Redesenha nas posições iniciais
-    load r0, ladraoSprite
-    load r1, ladraoGapsPtr
-    load r2, pos_ladrao
-    call printladrao
+    ; PENALIDADE DE MORTE: Reseta o Bônus e os Passos
+    loadn r0, #50
+    store bonus, r0
+    loadn r0, #0
+    store steps, r0
+    store saida_liberada, r0
     
-    load r0, policiaSprite
-    load r1, policiaGapsPtr
-    load r2, pos_policia
-    call printladrao
-
-    pop r3
-    pop r2
-    pop r1
     pop r0
     rts
 
@@ -1236,7 +2721,7 @@ converte_target_sai:
     loadn r1, #0
     store target_eh_xy, r1
 
-    load r6, pos_policiaant ; Posição atual do fantasma
+    load r6, pos_policiaant ; Posição atual da policia
 
     ; --- Checa direção 'a' (Esquerda) ---
 Policia_CalculaPos_a: 
@@ -1399,10 +2884,10 @@ Policia_decideDir_D:
 PoliciaCalculaPos_sai:
     pop r7
     pop r6
-  pop r5
+    pop r5
     pop r4
     pop r3
-  pop r2
+    pop r2
     pop r1
     pop r0
   rts
@@ -1441,67 +2926,100 @@ calculaDist_y2:
     pop r4
     rts
 
-; checa se a posicao r4 (em posObjeto) tem uma parede
+; ---------------------------------------------------------------------
+; Policia_checkCenario (CORRIGIDA)
+; Verifica se a posição R4 é válida para a polícia atual.
 Policia_checkCenario:
     push r0
     push r1
     push r2
+    push r3
+    push r4
     push r5
     push r6
+    push r7
     
 
-    push r0                  ; Salva a nova_pos
-    add r5, r2, r4           ; r5 = &ladraoGaps[i]
-    loadi r5, r5             ; r5 = ladraoGaps[i] (ex: 0, 1, 2, 40, 41, 42)
-    add r0, r0, r5           ; r0 = nova_pos + offset
-    add r5, r1, r0           ; r5 = &initScre[nova_pos + offset]
-    loadi r5, r5             ; r5 = ID DO TILE do cenário (ex: 31, 45, 106, etc)
-    pop r0                   ; Restaura a nova_pos original
+    ; Verifica Paredes
+    load r0, pos_policiaant
+    mov r1, r0
+    inc r1
+    cmp r4, r1
+    jeq Use_H_Gaps
+    mov r1, r4
+    inc r1
+    cmp r0, r1
+    jeq Use_H_Gaps
+    
+    loadn r5, #policiaGaps_V
+    jmp Do_Check_Tiles
+Use_H_Gaps:
+    loadn r5, #policiaGaps_H
 
+;faz a verificação de ruas
+Do_Check_Tiles:
+    loadn r1, #MapBuffer
+    loadn r2, #6
+    loadn r3, #0
 
-    call GetCenarioAtual
-    mov r1, r0              ; <-- r1 = endereço do cenário
-    add r6, r1, r4 ; R6 = Endereço base + Posição (R4)
-    loadi r5,r6 ;R5 = O ID DO TILE 
+;faz a verificação se é parede ou se é rua
+Loop_Wall_Check:
+    add r6, r5, r3
+    loadi r6, r6 ; offset
+    add r6, r4, r6 ; pos real
     
-    call IsTileWalkable ; Chama nossa função de colisão já existente
+    loadn r7, #0
+    cmp r6, r7
+    jle Eh_Parede_Force
+    loadn r7, #1200
+    cmp r6, r7
+    jgr Eh_Parede_Force
     
-    ; IsTileWalkable retorna R7 (1=chão, 0=parede)
-    ; Esta função precisa retornar 'ehParede' (0=chão, 1=parede)
-    ; Então, apenas invertemos R7.
+    add r6, r1, r6
+    loadi r7, r6
     
-    loadn r2, #1
-    cmp r7, r2
-    jeq Policia_nao_parede
+    push r5
+    mov r5, r7
+    call IsTileWalkable
+    mov r7, r7
+    pop r5
     
-    ; É parede
-    loadn r2, #1
-    store ehParede, r2
-    jmp Policia_check_sai
+    loadn r0, #0
+    cmp r7, r0
+    jeq Eh_Parede_Force
     
-Policia_nao_parede:
-    ; Não é parede
-    loadn r2, #0
-    store ehParede, r2
+    inc r3
+    cmp r3, r2
+    jne Loop_Wall_Check
+    
+    loadn r0, #0
+    store ehParede, r0
+    jmp Fim_Check_Cenario
 
-Policia_check_sai:
+Eh_Parede_Force:
+    loadn r0, #1
+    store ehParede, r0
+
+Fim_Check_Cenario:
+    pop r7
     pop r6
     pop r5
+    pop r4
+    pop r3
     pop r2
     pop r1
     pop r0
     rts
-    
-       
+
 ;---------------------------------------------------------------------
 ; AtualizaHUD
-; Desenha "PTS: 000  VIDAS: 003" na linha 0 (topo da tela)
+; Desenha "PTS: 000  VIDAS: corações" na linha 0 (topo da tela)
 ; ---------------------------------------------------------------------
 AtualizaHUD:
     push r0
     push r1
     push r2
-	push r3
+    push r3
     push r4
     push r5
     ; 1. Imprime "PTS:" na posição 6
@@ -1510,7 +3028,7 @@ AtualizaHUD:
     loadn r2, #256    ; Cor (Marrom/Branco ou escolha outra da sua tabela)
     call ImprimeString
 
-    ; 2. Imprime o valor dos Pontos (3 digitos) na posição 5
+    ; 2. Imprime o valor dos Pontos (5 digitos) na posição 9
     load r0, pontos
     loadn r1, #9
     call ImprimeNumero
@@ -1558,6 +3076,7 @@ EndDrawHearts:
     pop r1
     pop r0
     rts
+
 ; ---------------------------------------------------------------------
 ; ImprimeNumero
 ; Converte um numero em R0 (até 999) para ASCII e imprime na pos R1
@@ -1570,7 +3089,27 @@ ImprimeNumero:
     push r4
     push r5
 
+    
+    ; Dezena de milhar
+    loadn r2, #10000
+    div r3, r0, r2    ; r3 = digito dezenad de milhar
+    loadn r4, #48     ; '0' em ASCII
+    add r5, r3, r4    ; r5 = char
+    outchar r5, r1    ; Imprime
+    inc r1            ; Avança cursor
+    
+    ;Unidade de milhar
+    mod r0, r0, r2    ; r0 = resto
+    loadn r2, #1000
+    div r3, r0, r2    ; r3 = digito centenas
+    loadn r4, #48     ; '0' em ASCII
+    add r5, r3, r4    ; r5 = char
+    outchar r5, r1    ; Imprime
+    inc r1            ; Avança cursor
+
+
     ; Centenas
+    mod r0, r0, r2    ; r0 = resto
     loadn r2, #100
     div r3, r0, r2    ; r3 = digito centenas
     loadn r4, #48     ; '0' em ASCII
@@ -1639,84 +3178,165 @@ PrintStrSai:
 ResetPosicoesPorNivel:
     push r0
     push r1
+    push r7
     
     load r0, nivel_atual
     
     loadn r1, #1
     cmp r0, r1
     jne ResetPos_Level2
-    ; Level 1
-    loadn r0, #490
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #1020
-    store pos_policia, r0
-    store pos_ant_policia, r0
+    ; --- LEVEL 1 ---
+    loadn r1, #1          
+    store total_policiasatv, r1             ; numero de policias ativas
+    
+    ; Ladrão
+    loadn r0, #530
+    call SetLadraoPos
+    
+    ; Policiais (Indice, Posição)
+    loadn r0, #0
+    loadn r1, #1020
+    loadn r7, #0
+    call SetPoliciaInit
+    
     jmp ResetPos_Fim
     
 ResetPos_Level2:
     loadn r1, #2
     cmp r0, r1
     jne ResetPos_Level3
-    loadn r0, #209
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #1069
-    store pos_policia, r0
-    store pos_ant_policia, r0
+    
+    ; --- LEVEL 2 ---
+    loadn r1, #2          
+    store total_policiasatv, r1
+    
+    loadn r0, #570
+    call SetLadraoPos
+    
+    ; determina a posiçao das 4 policias
+    loadn r0, #0
+    loadn r1, #1069         ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
+    loadn r0, #1
+    loadn r1, #230          ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
     jmp ResetPos_Fim
     
 ResetPos_Level3:
     loadn r1, #3
     cmp r0, r1
     jne ResetPos_Level4
-    ; Level 3
-    loadn r0, #250  ; Ajustar depois
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #950
-    store pos_policia, r0
-    store pos_ant_policia, r0
+    
+    ; --- LEVEL 3 ---
+    
+    loadn r1, #3          
+    store total_policiasatv, r1
+    
+    loadn r0, #250
+    call SetLadraoPos
+    
+    ; determina a posiçao das 3 policias
+    loadn r0, #0        
+    loadn r1, #1009         ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
+    loadn r0, #1
+    loadn r1, #1020         ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
+    loadn r0, #2
+    loadn r1, #1028         ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
+    
     jmp ResetPos_Fim
     
 ResetPos_Level4:
-    ; Level 4
-    loadn r0, #300
-    store pos_ladrao, r0
-    store pos_ant_ladrao, r0
-    loadn r0, #900
-    store pos_policia, r0
-    store pos_ant_policia, r0
+    ; --- LEVEL 4 ---
+    loadn r1, #4          
+    store total_policiasatv, r1
+    
+    loadn r0, #230
+    call SetLadraoPos
+    
+    ; determina a posiçao das 4 policias
+    loadn r0, #0
+    loadn r1, #220      ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
+    loadn r0, #1
+    loadn r1, #379          ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
+    loadn r0, #2
+    loadn r1, #645          ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
+    
+    loadn r0, #3
+    loadn r1, #660          ;posiçao aqui
+    loadn r7, #0
+    call SetPoliciaInit
     
 ResetPos_Fim:
-    ; Reseta direções
+    ; Zera itens coletados do nível
+    loadn r0, #0
+    store itens_coletados, r0
+
+    pop r7
+    pop r1
+    pop r0
+    rts
+
+; Auxiliar local para setar ladrão
+SetLadraoPos:
+    store pos_ladrao, r0
+    store pos_ant_ladrao, r0
+    
+    ; Reseta sprite ladrão para direita
     loadn r0, #0
     store dir_ladrao, r0
-    store dir_policia, r0
-    
-    ; Reseta sprites para direita
     loadn r0, #ladrao_R
     store ladraoSprite, r0
     loadn r0, #ladraoGaps_H
     store ladraoGapsPtr, r0
     store ladraoGapsPtr_ant, r0
+    rts
+
+; ---------------------------------------------------------------------
+; LimpaTela
+; Preenche toda a tela (0 a 1199) com o caractere #31 (Espaço/Preto)
+; ---------------------------------------------------------------------
+LimpaTela:
+    push r0
+    push r1
+    push r2
     
-    loadn r0, #policia_R
-    store policiaSprite, r0
-    loadn r0, #policiaGaps_H
-    store policiaGapsPtr, r0
-    store policiaGapsPtr_ant, r0
+    loadn r0, #1200   ; Tamanho da tela (40x30)
+    loadn r1, #0      ; Contador / Posição
+    loadn r2, #31     ; Caractere de espaço vazio (Fundo)
+
+limpa_loop:
+    outchar r2, r1    ; Desenha o espaço na posição R1
+    inc r1            ; Próxima posição
+    cmp r1, r0        ; Chegou em 1200?
+    jne limpa_loop   ; Se não, continua
     
+    pop r2
     pop r1
     pop r0
     rts
-
-; Retorna em R0 o endereço do cenário do nível atual
-GetCenarioAtual:
-    load r0, cen_atual
-    rts
-
-
+    
+    
 ; Função que inicializa as variaveis do programa
 ; para comecar um jogo
 inicializa_var:
@@ -1725,9 +3345,6 @@ inicializa_var:
     push r2
     push r3
     push r4
-
-    loadn r0, #level1
-    store nivel_atual, r0
 
     loadn r0, #255
     store tecla_atual, r0
@@ -1738,34 +3355,26 @@ inicializa_var:
     store morte, r0
     store comecou, r0
     store pontos, r0
-
+    store steps, r0
+    store saida_liberada, r0
+    
+    loadn r0, #1
+    store nivel_atual, r0
 
     loadn r0, #490
     store pos_ladrao, r0
     store pos_ant_ladrao, r0
     
         ; Define o sprite inicial como o Horizontal
-    loadn r0, #ladrao_R
+    loadn r0, #ladrao_U
     store ladraoSprite, r0
     
-    loadn r0, #ladraoGaps_H
+    loadn r0, #ladraoGaps_V
     store ladraoGapsPtr, r0 
     store ladraoGapsPtr_ant, r0
     
     
-    loadn r0, #1020
-    store pos_policia, r0
-    store pos_ant_policia, r0
-    
-        ; Define o sprite inicial como o Horizontal
-    loadn r0, #policia_R
-    store policiaSprite, r0
-    
-    loadn r0, #policiaGaps_H
-    store policiaGapsPtr, r0 
-    store policiaGapsPtr_ant, r0
-
-    
+; --- INICIALIZAÇÃO DAS 4 POLÍCIAS ---    
     pop r4
     pop r3
     pop r2
@@ -1773,8 +3382,130 @@ inicializa_var:
     pop r0
     rts
 
+; R0 = Índice, R1 = Posição Inicial
+SetPoliciaInit:
+    push r2
+    push r3
+    
+    ; Define Posição
+    loadn r2, #pos_policia
+    add r2, r2, r0
+    storei r2, r1
+    
+    loadn r2, #morto_policia
+    add r2, r2, r0
+    storei r2, r7
+    
+    loadn r2, #pos_policiaant
+    add r2, r2, r0
+    storei r2, r1
+    
+    ; Define Direção (0)
+    loadn r2, #policia_dir
+    add r2, r2, r0
+    loadn r3, #0
+    storei r2, r3
+
+    ; Define Sprite/Gaps Iniciais (Horizontal / Direita)
+    loadn r2, #policia_sprite
+    add r2, r2, r0
+    loadn r3, #policia_R
+    storei r2, r3
+    
+    loadn r2, #policia_gaps
+    add r2, r2, r0
+    loadn r3, #policiaGaps_H
+    storei r2, r3
+    
+    loadn r2, #policia_gaps_ant
+    add r2, r2, r0
+    storei r2, r3
+    
+    pop r3
+    pop r2
+    rts
+
+; ---------------------------------------------------------------------
+; UpdatePolicia
+; Loop que move cada um dos 4 policiais sequencialmente
+; ---------------------------------------------------------------------
+UpdatePolicia:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    
+    loadn r0, #0  ; i = 0
+    load r1, total_policiasatv  ; limite
+    loadn r4, #1
+
+Loop_update:
+    cmp r1, r0
+    jeq Fim_update
+    
+    ; Define policial atual
+    store temp_indice, r0
+    
+    loadn r2, #morto_policia
+    add r2, r2, r0
+    loadi r2,r2
+    cmp r4,r2
+    jeq next_poll     
+    
+    ; Salva estados antigos (ESSENCIAL!)
+    loadn r2, #pos_policia
+    add r2, r2, r0
+    loadi r3, r2
+    
+    loadn r2, #pos_ant_policia
+    add r2, r2, r0
+    storei r2, r3            ; pos_policiaant[i] = pos_policia[i]
+
+    loadn r2, #policia_gaps
+    add r2, r2, r0
+    loadi r3, r2
+    
+    loadn r2, #policia_gaps_ant
+    add r2, r2, r0
+    storei r2, r3            ; gaps_ant[i] = gaps[i]
+    
+    ; Backup Direção e Estado (Opcional, mas bom para consistência)
+    loadn r2, #policia_dir
+    add r2, r2, r0
+    loadi r3, r2
+    store dir_policiaant, r3  ; Usa var temporária para IA
 
 
+    call CalculaPosPolicia
+    
+    next_poll:
+        inc r0
+    jmp Loop_update
+
+Fim_update:
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+;Funçao que trava o processamento até que uma tecla seja solta
+WaitKeyRelease:
+    push r0
+    push r1
+    
+    loadn r1, #255      ;caractere vazio
+WaitKeyRelease_Loop:
+    inchar r0
+    cmp r0, r1
+    jne WaitKeyRelease_Loop  ; Se r0 != 255 (tem tecla pressionada), continua no loop
+    
+    pop r1
+    pop r0
+    rts
+    
 level1 : var #1200
   ;Linha 0
   static level1 + #0, #3967
@@ -2118,7 +3849,7 @@ level1 : var #1200
   static level1 + #322, #3967
   static level1 + #323, #3692
   static level1 + #324, #15
-  static level1 + #325, #789
+  static level1 + #325, #2835
   static level1 + #326, #15
   static level1 + #327, #1373
   static level1 + #328, #1373
@@ -2167,9 +3898,9 @@ level1 : var #1200
   static level1 + #369, #31
   static level1 + #370, #31
   static level1 + #371, #31
-  static level1 + #372, #1373
-  static level1 + #373, #1373
-  static level1 + #374, #1373
+  static level1 + #372, #31
+  static level1 + #373, #31
+  static level1 + #374, #31
   static level1 + #375, #15
   static level1 + #376, #15
   static level1 + #377, #15
@@ -2381,7 +4112,7 @@ level1 : var #1200
   static level1 + #573, #45
   static level1 + #574, #45
   static level1 + #575, #15
-  static level1 + #576, #789
+  static level1 + #576, #2835
   static level1 + #577, #15
   static level1 + #578, #45
   static level1 + #579, #45
@@ -2889,7 +4620,7 @@ level1 : var #1200
   static level1 + #1057, #45
   static level1 + #1058, #45
   static level1 + #1059, #45
-  static level1 + #1060, #789
+  static level1 + #1060, #45
   static level1 + #1061, #45
   static level1 + #1062, #45
   static level1 + #1063, #45
@@ -2928,7 +4659,7 @@ level1 : var #1200
   static level1 + #1094, #45
   static level1 + #1095, #45
   static level1 + #1096, #45
-  static level1 + #1097, #45
+  static level1 + #1097, #2859
   static level1 + #1098, #45
   static level1 + #1099, #45
   static level1 + #1100, #45
@@ -3282,7 +5013,7 @@ level2 : var #1200
   static level2 + #230, #15
   static level2 + #231, #15
   static level2 + #232, #15
-  static level2 + #233, #15
+  static level2 + #233, #2835
   static level2 + #234, #3691
   static level2 + #235, #3967
   static level2 + #236, #3967
@@ -3346,7 +5077,7 @@ level2 : var #1200
   static level2 + #290, #3421
   static level2 + #291, #3421
   static level2 + #292, #1556
-  static level2 + #293, #3967
+  static level2 + #293, #31
   static level2 + #294, #2909
   static level2 + #295, #3421
   static level2 + #296, #2909
@@ -3387,8 +5118,8 @@ level2 : var #1200
   static level2 + #329, #3421
   static level2 + #330, #2909
   static level2 + #331, #3421
-  static level2 + #332, #3967
-  static level2 + #333, #3967
+  static level2 + #332, #31
+  static level2 + #333, #31
   static level2 + #334, #3421
   static level2 + #335, #3421
   static level2 + #336, #3421
@@ -3426,14 +5157,14 @@ level2 : var #1200
   static level2 + #366, #15
   static level2 + #367, #15
   static level2 + #368, #15
-  static level2 + #369, #3421
-  static level2 + #370, #3421
-  static level2 + #371, #3421
-  static level2 + #372, #3967
-  static level2 + #373, #3967
-  static level2 + #374, #3967
-  static level2 + #375, #3967
-  static level2 + #376, #3967
+  static level2 + #369, #31
+  static level2 + #370, #31
+  static level2 + #371, #31
+  static level2 + #372, #31
+  static level2 + #373, #31
+  static level2 + #374, #31
+  static level2 + #375, #31
+  static level2 + #376, #31
   static level2 + #377, #15
   static level2 + #378, #15
   static level2 + #379, #15
@@ -3468,11 +5199,11 @@ level2 : var #1200
   static level2 + #406, #15
   static level2 + #407, #15
   static level2 + #408, #15
-  static level2 + #409, #3967
-  static level2 + #410, #3967
-  static level2 + #411, #3967
-  static level2 + #412, #3967
-  static level2 + #413, #3967
+  static level2 + #409, #31
+  static level2 + #410, #31
+  static level2 + #411, #31
+  static level2 + #412, #31
+  static level2 + #413, #31
   static level2 + #414, #3421
   static level2 + #415, #3421
   static level2 + #416, #3421
@@ -3485,7 +5216,7 @@ level2 : var #1200
   static level2 + #423, #45
   static level2 + #424, #45
   static level2 + #425, #45
-  static level2 + #426, #1301
+  static level2 + #426, #2849
   static level2 + #427, #45
   static level2 + #428, #3421
   static level2 + #429, #2909
@@ -3513,8 +5244,8 @@ level2 : var #1200
   static level2 + #449, #3421
   static level2 + #450, #3421
   static level2 + #451, #2909
-  static level2 + #452, #3967
-  static level2 + #453, #3967
+  static level2 + #452, #31
+  static level2 + #453, #31
   static level2 + #454, #3421
   static level2 + #455, #2909
   static level2 + #456, #3421
@@ -3555,11 +5286,11 @@ level2 : var #1200
   static level2 + #489, #2909
   static level2 + #490, #3421
   static level2 + #491, #3421
-  static level2 + #492, #3967
-  static level2 + #493, #3967
-  static level2 + #494, #3967
-  static level2 + #495, #3967
-  static level2 + #496, #3967
+  static level2 + #492, #31
+  static level2 + #493, #31
+  static level2 + #494, #31
+  static level2 + #495, #31
+  static level2 + #496, #31
   static level2 + #497, #15
   static level2 + #498, #15
   static level2 + #499, #15
@@ -3597,15 +5328,15 @@ level2 : var #1200
   static level2 + #529, #3421
   static level2 + #530, #2909
   static level2 + #531, #3421
-  static level2 + #532, #3967
-  static level2 + #533, #3967
+  static level2 + #532, #31
+  static level2 + #533, #31
   static level2 + #534, #3421
   static level2 + #535, #3421
   static level2 + #536, #3421
   static level2 + #537, #15
-  static level2 + #538, #15
-  static level2 + #539, #15
-  static level2 + #540, #15
+  static level2 + #538, #2831
+  static level2 + #539, #2831
+  static level2 + #540, #2831
   static level2 + #541, #15
   static level2 + #542, #3421
   static level2 + #543, #3421
@@ -3632,8 +5363,8 @@ level2 : var #1200
   static level2 + #562, #3967
   static level2 + #563, #3967
   static level2 + #564, #3692
-  static level2 + #565, #15
-  static level2 + #566, #15
+  static level2 + #565, #3421
+  static level2 + #566, #3421
   static level2 + #567, #15
   static level2 + #568, #15
   static level2 + #569, #45
@@ -3645,9 +5376,9 @@ level2 : var #1200
   static level2 + #575, #45
   static level2 + #576, #45
   static level2 + #577, #15
-  static level2 + #578, #15
-  static level2 + #579, #15
-  static level2 + #580, #15
+  static level2 + #578, #2831
+  static level2 + #579, #2859
+  static level2 + #580, #2831
   static level2 + #581, #15
   static level2 + #582, #45
   static level2 + #583, #45
@@ -3687,9 +5418,9 @@ level2 : var #1200
   static level2 + #615, #45
   static level2 + #616, #45
   static level2 + #617, #15
-  static level2 + #618, #15
-  static level2 + #619, #15
-  static level2 + #620, #15
+  static level2 + #618, #2831
+  static level2 + #619, #2831
+  static level2 + #620, #2831
   static level2 + #621, #15
   static level2 + #622, #45
   static level2 + #623, #45
@@ -3717,16 +5448,16 @@ level2 : var #1200
   static level2 + #643, #3967
   static level2 + #644, #3692
   static level2 + #645, #15
-  static level2 + #646, #15
+  static level2 + #646, #2835
   static level2 + #647, #15
   static level2 + #648, #15
   static level2 + #649, #3421
   static level2 + #650, #3421
-  static level2 + #651, #3967
+  static level2 + #651, #31
   static level2 + #652, #3421
   static level2 + #653, #3421
   static level2 + #654, #3421
-  static level2 + #655, #3967
+  static level2 + #655, #31
   static level2 + #656, #3421
   static level2 + #657, #15
   static level2 + #658, #15
@@ -3735,10 +5466,10 @@ level2 : var #1200
   static level2 + #661, #15
   static level2 + #662, #3421
   static level2 + #663, #2909
-  static level2 + #664, #3967
-  static level2 + #665, #3421
-  static level2 + #666, #3421
-  static level2 + #667, #3967
+  static level2 + #664, #31
+  static level2 + #665, #31
+  static level2 + #666, #31
+  static level2 + #667, #3421
   static level2 + #668, #3421
   static level2 + #669, #3421
   static level2 + #670, #15
@@ -3764,11 +5495,11 @@ level2 : var #1200
   static level2 + #688, #15
   static level2 + #689, #3421
   static level2 + #690, #3421
-  static level2 + #691, #3967
+  static level2 + #691, #31
   static level2 + #692, #3421
-  static level2 + #693, #3967
+  static level2 + #693, #31
   static level2 + #694, #3421
-  static level2 + #695, #3967
+  static level2 + #695, #31
   static level2 + #696, #3421
   static level2 + #697, #15
   static level2 + #698, #15
@@ -3777,10 +5508,10 @@ level2 : var #1200
   static level2 + #701, #15
   static level2 + #702, #3421
   static level2 + #703, #3421
-  static level2 + #704, #3967
-  static level2 + #705, #2909
-  static level2 + #706, #3421
-  static level2 + #707, #3967
+  static level2 + #704, #31
+  static level2 + #705, #31
+  static level2 + #706, #31
+  static level2 + #707, #31
   static level2 + #708, #2909
   static level2 + #709, #3421
   static level2 + #710, #15
@@ -3819,16 +5550,16 @@ level2 : var #1200
   static level2 + #741, #15
   static level2 + #742, #2909
   static level2 + #743, #3421
-  static level2 + #744, #3967
-  static level2 + #745, #3421
-  static level2 + #746, #2909
-  static level2 + #747, #3967
+  static level2 + #744, #3421
+  static level2 + #745, #31
+  static level2 + #746, #31
+  static level2 + #747, #31
   static level2 + #748, #3421
   static level2 + #749, #2909
   static level2 + #750, #15
   static level2 + #751, #15
   static level2 + #752, #15
-  static level2 + #753, #15
+  static level2 + #753, #2835
   static level2 + #754, #3691
   static level2 + #755, #3967
   static level2 + #756, #3967
@@ -3861,10 +5592,10 @@ level2 : var #1200
   static level2 + #781, #15
   static level2 + #782, #3421
   static level2 + #783, #3421
-  static level2 + #784, #3967
+  static level2 + #784, #2909
   static level2 + #785, #2909
-  static level2 + #786, #3421
-  static level2 + #787, #3967
+  static level2 + #786, #31
+  static level2 + #787, #31
   static level2 + #788, #2909
   static level2 + #789, #3421
   static level2 + #790, #15
@@ -3890,10 +5621,10 @@ level2 : var #1200
   static level2 + #808, #15
   static level2 + #809, #3421
   static level2 + #810, #3421
-  static level2 + #811, #3421
-  static level2 + #812, #3967
+  static level2 + #811, #31
+  static level2 + #812, #31
   static level2 + #813, #3421
-  static level2 + #814, #3967
+  static level2 + #814, #31
   static level2 + #815, #3421
   static level2 + #816, #3421
   static level2 + #817, #15
@@ -3905,12 +5636,12 @@ level2 : var #1200
   static level2 + #823, #2653
   static level2 + #824, #2653
   static level2 + #825, #3421
-  static level2 + #826, #3421
-  static level2 + #827, #3967
+  static level2 + #826, #31
+  static level2 + #827, #1556
   static level2 + #828, #3421
   static level2 + #829, #2909
-  static level2 + #830, #15
-  static level2 + #831, #15
+  static level2 + #830, #3421
+  static level2 + #831, #3421
   static level2 + #832, #15
   static level2 + #833, #15
   static level2 + #834, #3691
@@ -3931,11 +5662,11 @@ level2 : var #1200
   static level2 + #847, #15
   static level2 + #848, #15
   static level2 + #849, #3421
-  static level2 + #850, #3967
-  static level2 + #851, #3967
-  static level2 + #852, #3967
+  static level2 + #850, #31
+  static level2 + #851, #31
+  static level2 + #852, #2835
   static level2 + #853, #3421
-  static level2 + #854, #3967
+  static level2 + #854, #31
   static level2 + #855, #3421
   static level2 + #856, #3421
   static level2 + #857, #15
@@ -4024,7 +5755,7 @@ level2 : var #1200
   static level2 + #936, #45
   static level2 + #937, #15
   static level2 + #938, #15
-  static level2 + #939, #15
+  static level2 + #939, #2835
   static level2 + #940, #15
   static level2 + #941, #15
   static level2 + #942, #861
@@ -4057,13 +5788,13 @@ level2 : var #1200
   static level2 + #967, #15
   static level2 + #968, #15
   static level2 + #969, #3421
-  static level2 + #970, #3967
+  static level2 + #970, #31
   static level2 + #971, #3421
-  static level2 + #972, #3967
+  static level2 + #972, #31
   static level2 + #973, #3421
-  static level2 + #974, #3967
+  static level2 + #974, #31
   static level2 + #975, #3421
-  static level2 + #976, #3967
+  static level2 + #976, #31
   static level2 + #977, #15
   static level2 + #978, #15
   static level2 + #979, #15
@@ -4099,13 +5830,13 @@ level2 : var #1200
   static level2 + #1007, #15
   static level2 + #1008, #15
   static level2 + #1009, #3421
-  static level2 + #1010, #3967
+  static level2 + #1010, #31
   static level2 + #1011, #3421
-  static level2 + #1012, #3967
+  static level2 + #1012, #31
   static level2 + #1013, #3421
-  static level2 + #1014, #3967
+  static level2 + #1014, #31
   static level2 + #1015, #3421
-  static level2 + #1016, #3967
+  static level2 + #1016, #31
   static level2 + #1017, #15
   static level2 + #1018, #15
   static level2 + #1019, #15
@@ -4121,8 +5852,8 @@ level2 : var #1200
   static level2 + #1029, #861
   static level2 + #1030, #15
   static level2 + #1031, #15
-  static level2 + #1032, #15
-  static level2 + #1033, #15
+  static level2 + #1032, #3421
+  static level2 + #1033, #3421
   static level2 + #1034, #3691
   static level2 + #1035, #3967
   static level2 + #1036, #3967
@@ -4297,6 +6028,9 @@ level2 : var #1200
   static level2 + #1197, #3967
   static level2 + #1198, #3967
   static level2 + #1199, #3967
+
+
+
 
 level3 : var #1200
   ;Linha 0
@@ -4642,17 +6376,17 @@ level3 : var #1200
   static level3 + #323, #3692
   static level3 + #324, #15
   static level3 + #325, #15
-  static level3 + #326, #15
+  static level3 + #326, #1117
   static level3 + #327, #1117
   static level3 + #328, #1117
-  static level3 + #329, #1117
+  static level3 + #329, #1055
   static level3 + #330, #1117
   static level3 + #331, #1117
-  static level3 + #332, #3967
-  static level3 + #333, #1117
+  static level3 + #332, #31
+  static level3 + #333, #31
   static level3 + #334, #1117
-  static level3 + #335, #3967
-  static level3 + #336, #3967
+  static level3 + #335, #31
+  static level3 + #336, #31
   static level3 + #337, #1117
   static level3 + #338, #1117
   static level3 + #339, #15
@@ -4665,11 +6399,11 @@ level3 : var #1200
   static level3 + #346, #2653
   static level3 + #347, #2653
   static level3 + #348, #2653
-  static level3 + #349, #3967
-  static level3 + #350, #1117
+  static level3 + #349, #31
+  static level3 + #350, #31
   static level3 + #351, #1117
   static level3 + #352, #1117
-  static level3 + #353, #1117
+  static level3 + #353, #31
   static level3 + #354, #15
   static level3 + #355, #1556
   static level3 + #356, #3691
@@ -4684,14 +6418,14 @@ level3 : var #1200
   static level3 + #363, #3692
   static level3 + #364, #15
   static level3 + #365, #15
-  static level3 + #366, #15
+  static level3 + #366, #1117
   static level3 + #367, #1117
-  static level3 + #368, #1117
+  static level3 + #368, #31
   static level3 + #369, #1117
   static level3 + #370, #1117
   static level3 + #371, #1117
-  static level3 + #372, #3967
-  static level3 + #373, #1117
+  static level3 + #372, #31
+  static level3 + #373, #31
   static level3 + #374, #1117
   static level3 + #375, #1117
   static level3 + #376, #1117
@@ -4707,11 +6441,11 @@ level3 : var #1200
   static level3 + #386, #2653
   static level3 + #387, #2653
   static level3 + #388, #861
-  static level3 + #389, #3967
-  static level3 + #390, #1117
-  static level3 + #391, #1117
+  static level3 + #389, #31
+  static level3 + #390, #31
+  static level3 + #391, #31
   static level3 + #392, #1117
-  static level3 + #393, #1117
+  static level3 + #393, #31
   static level3 + #394, #15
   static level3 + #395, #15
   static level3 + #396, #3691
@@ -4726,17 +6460,17 @@ level3 : var #1200
   static level3 + #403, #3692
   static level3 + #404, #15
   static level3 + #405, #15
-  static level3 + #406, #15
-  static level3 + #407, #1117
-  static level3 + #408, #1117
-  static level3 + #409, #1117
-  static level3 + #410, #1117
-  static level3 + #411, #1117
-  static level3 + #412, #3967
-  static level3 + #413, #1117
-  static level3 + #414, #1117
-  static level3 + #415, #3967
-  static level3 + #416, #3967
+  static level3 + #406, #31
+  static level3 + #407, #31
+  static level3 + #408, #31
+  static level3 + #409, #31
+  static level3 + #410, #31
+  static level3 + #411, #2835
+  static level3 + #412, #31
+  static level3 + #413, #31
+  static level3 + #414, #31
+  static level3 + #415, #31
+  static level3 + #416, #31
   static level3 + #417, #1117
   static level3 + #418, #1117
   static level3 + #419, #15
@@ -4749,11 +6483,11 @@ level3 : var #1200
   static level3 + #426, #2653
   static level3 + #427, #2653
   static level3 + #428, #861
-  static level3 + #429, #3967
-  static level3 + #430, #3967
-  static level3 + #431, #3967
-  static level3 + #432, #3967
-  static level3 + #433, #3967
+  static level3 + #429, #31
+  static level3 + #430, #31
+  static level3 + #431, #31
+  static level3 + #432, #2835
+  static level3 + #433, #31
   static level3 + #434, #15
   static level3 + #435, #15
   static level3 + #436, #3691
@@ -4768,19 +6502,19 @@ level3 : var #1200
   static level3 + #443, #3692
   static level3 + #444, #15
   static level3 + #445, #15
-  static level3 + #446, #15
-  static level3 + #447, #3967
-  static level3 + #448, #3967
-  static level3 + #449, #3967
-  static level3 + #450, #3967
-  static level3 + #451, #3967
-  static level3 + #452, #3967
-  static level3 + #453, #3967
-  static level3 + #454, #3967
-  static level3 + #455, #3967
+  static level3 + #446, #31
+  static level3 + #447, #31
+  static level3 + #448, #31
+  static level3 + #449, #31
+  static level3 + #450, #31
+  static level3 + #451, #31
+  static level3 + #452, #31
+  static level3 + #453, #31
+  static level3 + #454, #31
+  static level3 + #455, #31
   static level3 + #456, #3967
-  static level3 + #457, #3967
-  static level3 + #458, #3967
+  static level3 + #457, #31
+  static level3 + #458, #31
   static level3 + #459, #15
   static level3 + #460, #15
   static level3 + #461, #2653
@@ -4791,11 +6525,11 @@ level3 : var #1200
   static level3 + #466, #2653
   static level3 + #467, #2653
   static level3 + #468, #2653
-  static level3 + #469, #3967
-  static level3 + #470, #1117
-  static level3 + #471, #1117
-  static level3 + #472, #1117
-  static level3 + #473, #1117
+  static level3 + #469, #31
+  static level3 + #470, #31
+  static level3 + #471, #31
+  static level3 + #472, #31
+  static level3 + #473, #31
   static level3 + #474, #15
   static level3 + #475, #15
   static level3 + #476, #3691
@@ -4810,19 +6544,19 @@ level3 : var #1200
   static level3 + #483, #3692
   static level3 + #484, #15
   static level3 + #485, #15
-  static level3 + #486, #15
+  static level3 + #486, #1117
   static level3 + #487, #1117
   static level3 + #488, #1117
-  static level3 + #489, #3967
-  static level3 + #490, #1117
-  static level3 + #491, #1117
+  static level3 + #489, #31
+  static level3 + #490, #31
+  static level3 + #491, #31
   static level3 + #492, #1117
   static level3 + #493, #1117
-  static level3 + #494, #3967
-  static level3 + #495, #3967
-  static level3 + #496, #3967
-  static level3 + #497, #3967
-  static level3 + #498, #3967
+  static level3 + #494, #31
+  static level3 + #495, #31
+  static level3 + #496, #31
+  static level3 + #497, #31
+  static level3 + #498, #31
   static level3 + #499, #15
   static level3 + #500, #15
   static level3 + #501, #861
@@ -4833,11 +6567,11 @@ level3 : var #1200
   static level3 + #506, #2653
   static level3 + #507, #2653
   static level3 + #508, #2653
-  static level3 + #509, #3967
-  static level3 + #510, #1117
+  static level3 + #509, #31
+  static level3 + #510, #31
   static level3 + #511, #1117
-  static level3 + #512, #1117
-  static level3 + #513, #1117
+  static level3 + #512, #31
+  static level3 + #513, #31
   static level3 + #514, #15
   static level3 + #515, #15
   static level3 + #516, #3691
@@ -4852,19 +6586,19 @@ level3 : var #1200
   static level3 + #523, #3692
   static level3 + #524, #15
   static level3 + #525, #15
-  static level3 + #526, #15
-  static level3 + #527, #1117
-  static level3 + #528, #1117
-  static level3 + #529, #3967
-  static level3 + #530, #1117
-  static level3 + #531, #1117
+  static level3 + #526, #31
+  static level3 + #527, #31
+  static level3 + #528, #31
+  static level3 + #529, #31
+  static level3 + #530, #31
+  static level3 + #531, #31
   static level3 + #532, #1117
   static level3 + #533, #1117
-  static level3 + #534, #45
-  static level3 + #535, #45
-  static level3 + #536, #45
-  static level3 + #537, #45
-  static level3 + #538, #45
+  static level3 + #534, #31
+  static level3 + #535, #31
+  static level3 + #536, #31
+  static level3 + #537, #31
+  static level3 + #538, #31
   static level3 + #539, #15
   static level3 + #540, #15
   static level3 + #541, #861
@@ -4875,11 +6609,11 @@ level3 : var #1200
   static level3 + #546, #2653
   static level3 + #547, #861
   static level3 + #548, #861
-  static level3 + #549, #3967
-  static level3 + #550, #3967
-  static level3 + #551, #3967
-  static level3 + #552, #3967
-  static level3 + #553, #3967
+  static level3 + #549, #31
+  static level3 + #550, #31
+  static level3 + #551, #31
+  static level3 + #552, #31
+  static level3 + #553, #1117
   static level3 + #554, #15
   static level3 + #555, #15
   static level3 + #556, #3691
@@ -4894,19 +6628,19 @@ level3 : var #1200
   static level3 + #563, #3692
   static level3 + #564, #15
   static level3 + #565, #15
-  static level3 + #566, #15
-  static level3 + #567, #3967
-  static level3 + #568, #3967
-  static level3 + #569, #3967
-  static level3 + #570, #3967
-  static level3 + #571, #3967
-  static level3 + #572, #3967
-  static level3 + #573, #3967
-  static level3 + #574, #45
+  static level3 + #566, #31
+  static level3 + #567, #31
+  static level3 + #568, #31
+  static level3 + #569, #31
+  static level3 + #570, #31
+  static level3 + #571, #31
+  static level3 + #572, #31
+  static level3 + #573, #31
+  static level3 + #574, #31
   static level3 + #575, #1556
-  static level3 + #576, #45
-  static level3 + #577, #45
-  static level3 + #578, #45
+  static level3 + #576, #31
+  static level3 + #577, #31
+  static level3 + #578, #31
   static level3 + #579, #15
   static level3 + #580, #15
   static level3 + #581, #2653
@@ -4917,7 +6651,7 @@ level3 : var #1200
   static level3 + #586, #2653
   static level3 + #587, #861
   static level3 + #588, #861
-  static level3 + #589, #3967
+  static level3 + #589, #31
   static level3 + #590, #1117
   static level3 + #591, #1117
   static level3 + #592, #1117
@@ -4936,33 +6670,33 @@ level3 : var #1200
   static level3 + #603, #3692
   static level3 + #604, #15
   static level3 + #605, #15
-  static level3 + #606, #15
+  static level3 + #606, #1117
   static level3 + #607, #1117
-  static level3 + #608, #1117
-  static level3 + #609, #3967
+  static level3 + #608, #31
+  static level3 + #609, #31
   static level3 + #610, #1117
   static level3 + #611, #1117
-  static level3 + #612, #1117
-  static level3 + #613, #1117
-  static level3 + #614, #45
-  static level3 + #615, #45
-  static level3 + #616, #45
-  static level3 + #617, #45
-  static level3 + #618, #45
+  static level3 + #612, #31
+  static level3 + #613, #31
+  static level3 + #614, #31
+  static level3 + #615, #31
+  static level3 + #616, #31
+  static level3 + #617, #31
+  static level3 + #618, #31
   static level3 + #619, #15
   static level3 + #620, #15
-  static level3 + #621, #3967
-  static level3 + #622, #3967
-  static level3 + #623, #3967
-  static level3 + #624, #3967
-  static level3 + #625, #3967
-  static level3 + #626, #3967
-  static level3 + #627, #3967
-  static level3 + #628, #3967
-  static level3 + #629, #3967
-  static level3 + #630, #1117
-  static level3 + #631, #1117
-  static level3 + #632, #1117
+  static level3 + #621, #31
+  static level3 + #622, #2835
+  static level3 + #623, #31
+  static level3 + #624, #31
+  static level3 + #625, #31
+  static level3 + #626, #31
+  static level3 + #627, #31
+  static level3 + #628, #31
+  static level3 + #629, #1117
+  static level3 + #630, #31
+  static level3 + #631, #31
+  static level3 + #632, #1301
   static level3 + #633, #1117
   static level3 + #634, #15
   static level3 + #635, #15
@@ -4978,19 +6712,19 @@ level3 : var #1200
   static level3 + #643, #3692
   static level3 + #644, #15
   static level3 + #645, #15
-  static level3 + #646, #15
+  static level3 + #646, #1117
   static level3 + #647, #1117
-  static level3 + #648, #1117
-  static level3 + #649, #3967
+  static level3 + #648, #31
+  static level3 + #649, #31
   static level3 + #650, #1117
-  static level3 + #651, #1117
-  static level3 + #652, #1117
-  static level3 + #653, #1117
-  static level3 + #654, #3967
-  static level3 + #655, #3967
-  static level3 + #656, #3967
-  static level3 + #657, #3967
-  static level3 + #658, #3967
+  static level3 + #651, #93
+  static level3 + #652, #31
+  static level3 + #653, #31
+  static level3 + #654, #31
+  static level3 + #655, #31
+  static level3 + #656, #31
+  static level3 + #657, #31
+  static level3 + #658, #31
   static level3 + #659, #15
   static level3 + #660, #15
   static level3 + #661, #45
@@ -5001,11 +6735,11 @@ level3 : var #1200
   static level3 + #666, #45
   static level3 + #667, #45
   static level3 + #668, #45
-  static level3 + #669, #3967
-  static level3 + #670, #3967
-  static level3 + #671, #3967
-  static level3 + #672, #3967
-  static level3 + #673, #3967
+  static level3 + #669, #31
+  static level3 + #670, #31
+  static level3 + #671, #31
+  static level3 + #672, #31
+  static level3 + #673, #1117
   static level3 + #674, #15
   static level3 + #675, #15
   static level3 + #676, #3691
@@ -5020,32 +6754,32 @@ level3 : var #1200
   static level3 + #683, #3692
   static level3 + #684, #2835
   static level3 + #685, #15
-  static level3 + #686, #15
-  static level3 + #687, #3967
-  static level3 + #688, #3967
-  static level3 + #689, #3967
-  static level3 + #690, #3967
-  static level3 + #691, #3967
-  static level3 + #692, #3967
-  static level3 + #693, #3967
-  static level3 + #694, #3967
-  static level3 + #695, #3967
-  static level3 + #696, #3967
-  static level3 + #697, #3967
-  static level3 + #698, #3967
+  static level3 + #686, #1117
+  static level3 + #687, #31
+  static level3 + #688, #1301
+  static level3 + #689, #31
+  static level3 + #690, #31
+  static level3 + #691, #31
+  static level3 + #692, #31
+  static level3 + #693, #31
+  static level3 + #694, #31
+  static level3 + #695, #31
+  static level3 + #696, #31
+  static level3 + #697, #31
+  static level3 + #698, #31
   static level3 + #699, #15
   static level3 + #700, #15
   static level3 + #701, #45
   static level3 + #702, #45
   static level3 + #703, #45
-  static level3 + #704, #45
-  static level3 + #705, #45
+  static level3 + #704, #1117
+  static level3 + #705, #1117
   static level3 + #706, #45
   static level3 + #707, #1556
   static level3 + #708, #45
-  static level3 + #709, #3967
-  static level3 + #710, #1117
-  static level3 + #711, #1117
+  static level3 + #709, #31
+  static level3 + #710, #31
+  static level3 + #711, #31
   static level3 + #712, #1117
   static level3 + #713, #1117
   static level3 + #714, #15
@@ -5062,18 +6796,18 @@ level3 : var #1200
   static level3 + #723, #3692
   static level3 + #724, #15
   static level3 + #725, #15
-  static level3 + #726, #15
+  static level3 + #726, #1117
   static level3 + #727, #1117
-  static level3 + #728, #1117
-  static level3 + #729, #3967
-  static level3 + #730, #1117
-  static level3 + #731, #1117
-  static level3 + #732, #1117
-  static level3 + #733, #3967
+  static level3 + #728, #31
+  static level3 + #729, #31
+  static level3 + #730, #31
+  static level3 + #731, #31
+  static level3 + #732, #31
+  static level3 + #733, #31
   static level3 + #734, #1117
-  static level3 + #735, #3967
+  static level3 + #735, #31
   static level3 + #736, #1117
-  static level3 + #737, #3967
+  static level3 + #737, #31
   static level3 + #738, #1117
   static level3 + #739, #15
   static level3 + #740, #15
@@ -5081,11 +6815,11 @@ level3 : var #1200
   static level3 + #742, #45
   static level3 + #743, #45
   static level3 + #744, #45
-  static level3 + #745, #45
-  static level3 + #746, #45
-  static level3 + #747, #45
-  static level3 + #748, #45
-  static level3 + #749, #3967
+  static level3 + #745, #1117
+  static level3 + #746, #1117
+  static level3 + #747, #1117
+  static level3 + #748, #1117
+  static level3 + #749, #1117
   static level3 + #750, #1117
   static level3 + #751, #1117
   static level3 + #752, #1117
@@ -5104,34 +6838,34 @@ level3 : var #1200
   static level3 + #763, #3692
   static level3 + #764, #15
   static level3 + #765, #15
-  static level3 + #766, #15
+  static level3 + #766, #1117
   static level3 + #767, #1117
-  static level3 + #768, #1117
-  static level3 + #769, #3967
+  static level3 + #768, #31
+  static level3 + #769, #31
   static level3 + #770, #1117
   static level3 + #771, #1117
-  static level3 + #772, #1117
-  static level3 + #773, #3967
-  static level3 + #774, #1117
+  static level3 + #772, #31
+  static level3 + #773, #31
+  static level3 + #774, #31
   static level3 + #775, #1117
   static level3 + #776, #1117
   static level3 + #777, #1117
   static level3 + #778, #1117
   static level3 + #779, #15
   static level3 + #780, #15
-  static level3 + #781, #3967
-  static level3 + #782, #3967
-  static level3 + #783, #3967
-  static level3 + #784, #3967
-  static level3 + #785, #3967
-  static level3 + #786, #3967
-  static level3 + #787, #3967
-  static level3 + #788, #3967
-  static level3 + #789, #3967
-  static level3 + #790, #3967
-  static level3 + #791, #3967
-  static level3 + #792, #3967
-  static level3 + #793, #3967
+  static level3 + #781, #31
+  static level3 + #782, #1055
+  static level3 + #783, #31
+  static level3 + #784, #31
+  static level3 + #785, #31
+  static level3 + #786, #31
+  static level3 + #787, #1117
+  static level3 + #788, #1117
+  static level3 + #789, #1055
+  static level3 + #790, #1055
+  static level3 + #791, #1117
+  static level3 + #792, #2350
+  static level3 + #793, #31
   static level3 + #794, #15
   static level3 + #795, #15
   static level3 + #796, #3691
@@ -5146,34 +6880,34 @@ level3 : var #1200
   static level3 + #803, #3692
   static level3 + #804, #15
   static level3 + #805, #15
-  static level3 + #806, #15
-  static level3 + #807, #1117
-  static level3 + #808, #1117
-  static level3 + #809, #3967
-  static level3 + #810, #1117
+  static level3 + #806, #31
+  static level3 + #807, #31
+  static level3 + #808, #31
+  static level3 + #809, #31
+  static level3 + #810, #31
   static level3 + #811, #1117
-  static level3 + #812, #1117
-  static level3 + #813, #3967
-  static level3 + #814, #1117
+  static level3 + #812, #31
+  static level3 + #813, #2835
+  static level3 + #814, #31
   static level3 + #815, #1117
   static level3 + #816, #1117
   static level3 + #817, #1117
-  static level3 + #818, #1117
+  static level3 + #818, #31
   static level3 + #819, #15
   static level3 + #820, #15
   static level3 + #821, #1117
-  static level3 + #822, #3967
-  static level3 + #823, #1117
-  static level3 + #824, #3967
-  static level3 + #825, #1117
-  static level3 + #826, #3967
-  static level3 + #827, #1117
-  static level3 + #828, #3967
+  static level3 + #822, #31
+  static level3 + #823, #31
+  static level3 + #824, #31
+  static level3 + #825, #31
+  static level3 + #826, #31
+  static level3 + #827, #1556
+  static level3 + #828, #31
   static level3 + #829, #1117
-  static level3 + #830, #3967
-  static level3 + #831, #3967
-  static level3 + #832, #3967
-  static level3 + #833, #1117
+  static level3 + #830, #1117
+  static level3 + #831, #1117
+  static level3 + #832, #31
+  static level3 + #833, #31
   static level3 + #834, #15
   static level3 + #835, #15
   static level3 + #836, #3691
@@ -5188,30 +6922,30 @@ level3 : var #1200
   static level3 + #843, #3692
   static level3 + #844, #15
   static level3 + #845, #15
-  static level3 + #846, #15
-  static level3 + #847, #3967
-  static level3 + #848, #3967
-  static level3 + #849, #3967
-  static level3 + #850, #3967
-  static level3 + #851, #3967
-  static level3 + #852, #3967
-  static level3 + #853, #3967
-  static level3 + #854, #3967
-  static level3 + #855, #3967
-  static level3 + #856, #3967
-  static level3 + #857, #3967
-  static level3 + #858, #3967
+  static level3 + #846, #31
+  static level3 + #847, #31
+  static level3 + #848, #31
+  static level3 + #849, #31
+  static level3 + #850, #555
+  static level3 + #851, #31
+  static level3 + #852, #31
+  static level3 + #853, #31
+  static level3 + #854, #31
+  static level3 + #855, #31
+  static level3 + #856, #31
+  static level3 + #857, #31
+  static level3 + #858, #31
   static level3 + #859, #15
   static level3 + #860, #15
   static level3 + #861, #1117
   static level3 + #862, #1117
   static level3 + #863, #1117
-  static level3 + #864, #3967
-  static level3 + #865, #1117
-  static level3 + #866, #1117
-  static level3 + #867, #1117
-  static level3 + #868, #3967
-  static level3 + #869, #1117
+  static level3 + #864, #31
+  static level3 + #865, #31
+  static level3 + #866, #31
+  static level3 + #867, #31
+  static level3 + #868, #31
+  static level3 + #869, #31
   static level3 + #870, #1117
   static level3 + #871, #1117
   static level3 + #872, #1117
@@ -5230,33 +6964,33 @@ level3 : var #1200
   static level3 + #883, #3692
   static level3 + #884, #15
   static level3 + #885, #15
-  static level3 + #886, #15
+  static level3 + #886, #1117
   static level3 + #887, #1117
   static level3 + #888, #1117
-  static level3 + #889, #1117
-  static level3 + #890, #3967
-  static level3 + #891, #1117
-  static level3 + #892, #1117
-  static level3 + #893, #1117
-  static level3 + #894, #3967
+  static level3 + #889, #31
+  static level3 + #890, #31
+  static level3 + #891, #31
+  static level3 + #892, #31
+  static level3 + #893, #31
+  static level3 + #894, #31
   static level3 + #895, #1117
   static level3 + #896, #1117
   static level3 + #897, #1117
-  static level3 + #898, #1117
+  static level3 + #898, #31
   static level3 + #899, #15
   static level3 + #900, #15
   static level3 + #901, #1117
-  static level3 + #902, #1117
+  static level3 + #902, #1055
   static level3 + #903, #1117
-  static level3 + #904, #3967
+  static level3 + #904, #31
   static level3 + #905, #1117
   static level3 + #906, #1117
-  static level3 + #907, #1117
-  static level3 + #908, #3967
-  static level3 + #909, #1117
+  static level3 + #907, #31
+  static level3 + #908, #31
+  static level3 + #909, #31
   static level3 + #910, #1117
-  static level3 + #911, #1117
-  static level3 + #912, #1117
+  static level3 + #911, #1055
+  static level3 + #912, #1055
   static level3 + #913, #1117
   static level3 + #914, #15
   static level3 + #915, #15
@@ -5272,15 +7006,15 @@ level3 : var #1200
   static level3 + #923, #3692
   static level3 + #924, #15
   static level3 + #925, #15
-  static level3 + #926, #15
+  static level3 + #926, #1117
   static level3 + #927, #1117
   static level3 + #928, #1117
   static level3 + #929, #1117
-  static level3 + #930, #3967
-  static level3 + #931, #1117
-  static level3 + #932, #1117
+  static level3 + #930, #1117
+  static level3 + #931, #31
+  static level3 + #932, #31
   static level3 + #933, #1117
-  static level3 + #934, #3967
+  static level3 + #934, #31
   static level3 + #935, #1117
   static level3 + #936, #1117
   static level3 + #937, #1117
@@ -5290,12 +7024,12 @@ level3 : var #1200
   static level3 + #941, #1117
   static level3 + #942, #1117
   static level3 + #943, #1117
-  static level3 + #944, #3967
+  static level3 + #944, #31
   static level3 + #945, #1117
-  static level3 + #946, #1117
+  static level3 + #946, #1055
   static level3 + #947, #1117
-  static level3 + #948, #3967
-  static level3 + #949, #1117
+  static level3 + #948, #31
+  static level3 + #949, #31
   static level3 + #950, #1117
   static level3 + #951, #1117
   static level3 + #952, #1117
@@ -5312,38 +7046,38 @@ level3 : var #1200
   static level3 + #961, #3967
   static level3 + #962, #3967
   static level3 + #963, #3692
-  static level3 + #964, #45
-  static level3 + #965, #45
-  static level3 + #966, #45
-  static level3 + #967, #45
-  static level3 + #968, #45
-  static level3 + #969, #45
-  static level3 + #970, #45
-  static level3 + #971, #45
-  static level3 + #972, #45
-  static level3 + #973, #45
-  static level3 + #974, #45
-  static level3 + #975, #45
-  static level3 + #976, #45
-  static level3 + #977, #45
-  static level3 + #978, #45
-  static level3 + #979, #45
-  static level3 + #980, #45
-  static level3 + #981, #45
-  static level3 + #982, #45
-  static level3 + #983, #45
-  static level3 + #984, #45
-  static level3 + #985, #45
-  static level3 + #986, #45
-  static level3 + #987, #45
-  static level3 + #988, #45
-  static level3 + #989, #45
-  static level3 + #990, #45
-  static level3 + #991, #45
-  static level3 + #992, #45
-  static level3 + #993, #45
-  static level3 + #994, #45
-  static level3 + #995, #45
+  static level3 + #964, #15
+  static level3 + #965, #15
+  static level3 + #966, #1117
+  static level3 + #967, #31
+  static level3 + #968, #1117
+  static level3 + #969, #31
+  static level3 + #970, #1117
+  static level3 + #971, #31
+  static level3 + #972, #31
+  static level3 + #973, #31
+  static level3 + #974, #31
+  static level3 + #975, #31
+  static level3 + #976, #1117
+  static level3 + #977, #31
+  static level3 + #978, #1117
+  static level3 + #979, #31
+  static level3 + #980, #31
+  static level3 + #981, #31
+  static level3 + #982, #1117
+  static level3 + #983, #1055
+  static level3 + #984, #31
+  static level3 + #985, #1117
+  static level3 + #986, #1117
+  static level3 + #987, #1117
+  static level3 + #988, #31
+  static level3 + #989, #31
+  static level3 + #990, #31
+  static level3 + #991, #31
+  static level3 + #992, #31
+  static level3 + #993, #31
+  static level3 + #994, #15
+  static level3 + #995, #15
   static level3 + #996, #3691
   static level3 + #997, #3967
   static level3 + #998, #3967
@@ -5398,7 +7132,7 @@ level3 : var #1200
   static level3 + #1043, #3692
   static level3 + #1044, #45
   static level3 + #1045, #45
-  static level3 + #1046, #45
+  static level3 + #1046, #2835
   static level3 + #1047, #45
   static level3 + #1048, #45
   static level3 + #1049, #45
@@ -5558,7 +7292,6 @@ level3 : var #1200
   static level3 + #1197, #3967
   static level3 + #1198, #3967
   static level3 + #1199, #3967
-
 
 level4 : var #1200
   ;Linha 0
@@ -5775,16 +7508,16 @@ level4 : var #1200
   static level4 + #200, #3967
   static level4 + #201, #3967
   static level4 + #202, #3692
-  static level4 + #203, #45
+  static level4 + #203, #2835
   static level4 + #204, #45
   static level4 + #205, #45
   static level4 + #206, #45
   static level4 + #207, #45
-  static level4 + #208, #45
+  static level4 + #208, #2859
   static level4 + #209, #45
   static level4 + #210, #45
   static level4 + #211, #45
-  static level4 + #212, #45
+  static level4 + #212, #2835
   static level4 + #213, #45
   static level4 + #214, #45
   static level4 + #215, #45
@@ -5796,7 +7529,7 @@ level4 : var #1200
   static level4 + #221, #45
   static level4 + #222, #45
   static level4 + #223, #45
-  static level4 + #224, #45
+  static level4 + #224, #2835
   static level4 + #225, #45
   static level4 + #226, #45
   static level4 + #227, #45
@@ -5865,28 +7598,28 @@ level4 : var #1200
   static level4 + #286, #349
   static level4 + #287, #15
   static level4 + #288, #15
-  static level4 + #289, #15
+  static level4 + #289, #349
   static level4 + #290, #349
   static level4 + #291, #349
   static level4 + #292, #349
-  static level4 + #293, #3967
+  static level4 + #293, #31
   static level4 + #294, #349
   static level4 + #295, #349
-  static level4 + #296, #3967
+  static level4 + #296, #31
   static level4 + #297, #349
-  static level4 + #298, #3967
+  static level4 + #298, #31
   static level4 + #299, #349
-  static level4 + #300, #3967
+  static level4 + #300, #31
   static level4 + #301, #349
   static level4 + #302, #349
-  static level4 + #303, #3967
+  static level4 + #303, #31
   static level4 + #304, #349
-  static level4 + #305, #3967
+  static level4 + #305, #31
   static level4 + #306, #349
-  static level4 + #307, #3967
+  static level4 + #307, #31
   static level4 + #308, #349
-  static level4 + #309, #3967
-  static level4 + #310, #349
+  static level4 + #309, #31
+  static level4 + #310, #31
   static level4 + #311, #349
   static level4 + #312, #15
   static level4 + #313, #15
@@ -5907,28 +7640,28 @@ level4 : var #1200
   static level4 + #326, #349
   static level4 + #327, #15
   static level4 + #328, #15
-  static level4 + #329, #15
+  static level4 + #329, #349
   static level4 + #330, #349
   static level4 + #331, #349
   static level4 + #332, #349
-  static level4 + #333, #3967
+  static level4 + #333, #31
   static level4 + #334, #349
   static level4 + #335, #349
-  static level4 + #336, #3967
+  static level4 + #336, #31
   static level4 + #337, #349
   static level4 + #338, #349
   static level4 + #339, #349
-  static level4 + #340, #3967
-  static level4 + #341, #3967
-  static level4 + #342, #3967
-  static level4 + #343, #3967
+  static level4 + #340, #1301
+  static level4 + #341, #31
+  static level4 + #342, #31
+  static level4 + #343, #31
   static level4 + #344, #349
-  static level4 + #345, #3967
+  static level4 + #345, #31
   static level4 + #346, #349
-  static level4 + #347, #3967
+  static level4 + #347, #31
   static level4 + #348, #349
-  static level4 + #349, #3967
-  static level4 + #350, #349
+  static level4 + #349, #31
+  static level4 + #350, #31
   static level4 + #351, #349
   static level4 + #352, #15
   static level4 + #353, #15
@@ -5950,7 +7683,7 @@ level4 : var #1200
   static level4 + #367, #45
   static level4 + #368, #45
   static level4 + #369, #45
-  static level4 + #370, #349
+  static level4 + #370, #31
   static level4 + #371, #349
   static level4 + #372, #349
   static level4 + #373, #45
@@ -5968,7 +7701,7 @@ level4 : var #1200
   static level4 + #385, #45
   static level4 + #386, #45
   static level4 + #387, #45
-  static level4 + #388, #45
+  static level4 + #388, #2835
   static level4 + #389, #45
   static level4 + #390, #45
   static level4 + #391, #45
@@ -5992,7 +7725,7 @@ level4 : var #1200
   static level4 + #407, #45
   static level4 + #408, #45
   static level4 + #409, #45
-  static level4 + #410, #349
+  static level4 + #410, #31
   static level4 + #411, #349
   static level4 + #412, #349
   static level4 + #413, #45
@@ -6017,8 +7750,8 @@ level4 : var #1200
   static level4 + #432, #15
   static level4 + #433, #15
   static level4 + #434, #15
-  static level4 + #435, #3967
-  static level4 + #436, #3967
+  static level4 + #435, #2835
+  static level4 + #436, #31
   static level4 + #437, #3691
   static level4 + #438, #3967
   static level4 + #439, #3967
@@ -6033,16 +7766,16 @@ level4 : var #1200
   static level4 + #446, #349
   static level4 + #447, #349
   static level4 + #448, #349
-  static level4 + #449, #3967
-  static level4 + #450, #349
-  static level4 + #451, #349
-  static level4 + #452, #349
-  static level4 + #453, #3967
-  static level4 + #454, #349
+  static level4 + #449, #31
+  static level4 + #450, #31
+  static level4 + #451, #31
+  static level4 + #452, #31
+  static level4 + #453, #31
+  static level4 + #454, #31
   static level4 + #455, #349
-  static level4 + #456, #349
-  static level4 + #457, #3967
-  static level4 + #458, #349
+  static level4 + #456, #31
+  static level4 + #457, #31
+  static level4 + #458, #31
   static level4 + #459, #349
   static level4 + #460, #15
   static level4 + #461, #15
@@ -6058,9 +7791,9 @@ level4 : var #1200
   static level4 + #471, #15
   static level4 + #472, #15
   static level4 + #473, #15
-  static level4 + #474, #3967
-  static level4 + #475, #3967
-  static level4 + #476, #3967
+  static level4 + #474, #31
+  static level4 + #475, #31
+  static level4 + #476, #1301
   static level4 + #477, #3691
   static level4 + #478, #3967
   static level4 + #479, #3967
@@ -6072,20 +7805,20 @@ level4 : var #1200
   static level4 + #483, #15
   static level4 + #484, #15
   static level4 + #485, #15
-  static level4 + #486, #3967
+  static level4 + #486, #31
   static level4 + #487, #349
   static level4 + #488, #349
-  static level4 + #489, #3967
-  static level4 + #490, #3967
-  static level4 + #491, #3967
-  static level4 + #492, #3967
-  static level4 + #493, #3967
-  static level4 + #494, #3967
-  static level4 + #495, #3967
-  static level4 + #496, #3967
-  static level4 + #497, #3967
-  static level4 + #498, #349
-  static level4 + #499, #349
+  static level4 + #489, #2835
+  static level4 + #490, #31
+  static level4 + #491, #31
+  static level4 + #492, #31
+  static level4 + #493, #1556
+  static level4 + #494, #31
+  static level4 + #495, #31
+  static level4 + #496, #31
+  static level4 + #497, #31
+  static level4 + #498, #31
+  static level4 + #499, #31
   static level4 + #500, #15
   static level4 + #501, #15
   static level4 + #502, #15
@@ -6117,17 +7850,17 @@ level4 : var #1200
   static level4 + #526, #349
   static level4 + #527, #349
   static level4 + #528, #349
-  static level4 + #529, #3967
-  static level4 + #530, #349
+  static level4 + #529, #31
+  static level4 + #530, #31
   static level4 + #531, #349
   static level4 + #532, #349
-  static level4 + #533, #3967
+  static level4 + #533, #31
   static level4 + #534, #349
   static level4 + #535, #349
   static level4 + #536, #349
-  static level4 + #537, #3967
-  static level4 + #538, #3967
-  static level4 + #539, #3967
+  static level4 + #537, #31
+  static level4 + #538, #2835
+  static level4 + #539, #31
   static level4 + #540, #15
   static level4 + #541, #15
   static level4 + #542, #15
@@ -6153,23 +7886,23 @@ level4 : var #1200
   static level4 + #560, #3967
   static level4 + #561, #3967
   static level4 + #562, #3692
-  static level4 + #563, #15
+  static level4 + #563, #1556
   static level4 + #564, #15
   static level4 + #565, #15
-  static level4 + #566, #3967
+  static level4 + #566, #31
   static level4 + #567, #349
   static level4 + #568, #349
-  static level4 + #569, #3967
-  static level4 + #570, #349
+  static level4 + #569, #31
+  static level4 + #570, #31
   static level4 + #571, #349
   static level4 + #572, #349
   static level4 + #573, #349
   static level4 + #574, #349
   static level4 + #575, #349
-  static level4 + #576, #349
-  static level4 + #577, #3967
+  static level4 + #576, #31
+  static level4 + #577, #31
   static level4 + #578, #349
-  static level4 + #579, #349
+  static level4 + #579, #31
   static level4 + #580, #15
   static level4 + #581, #15
   static level4 + #582, #15
@@ -6201,16 +7934,16 @@ level4 : var #1200
   static level4 + #606, #349
   static level4 + #607, #349
   static level4 + #608, #349
-  static level4 + #609, #3967
-  static level4 + #610, #349
+  static level4 + #609, #31
+  static level4 + #610, #31
   static level4 + #611, #349
   static level4 + #612, #349
-  static level4 + #613, #3967
+  static level4 + #613, #31
   static level4 + #614, #349
   static level4 + #615, #349
-  static level4 + #616, #349
-  static level4 + #617, #3967
-  static level4 + #618, #349
+  static level4 + #616, #31
+  static level4 + #617, #31
+  static level4 + #618, #31
   static level4 + #619, #349
   static level4 + #620, #15
   static level4 + #621, #15
@@ -6349,7 +8082,7 @@ level4 : var #1200
   static level4 + #748, #45
   static level4 + #749, #45
   static level4 + #750, #45
-  static level4 + #751, #45
+  static level4 + #751, #2835
   static level4 + #752, #45
   static level4 + #753, #45
   static level4 + #754, #349
@@ -6367,11 +8100,11 @@ level4 : var #1200
   static level4 + #764, #15
   static level4 + #765, #349
   static level4 + #766, #349
-  static level4 + #767, #3967
+  static level4 + #767, #31
   static level4 + #768, #349
   static level4 + #769, #349
   static level4 + #770, #349
-  static level4 + #771, #3967
+  static level4 + #771, #31
   static level4 + #772, #349
   static level4 + #773, #349
   static level4 + #774, #3967
@@ -6382,8 +8115,8 @@ level4 : var #1200
   static level4 + #779, #15
   static level4 + #780, #15
   static level4 + #781, #349
-  static level4 + #782, #3967
-  static level4 + #783, #3967
+  static level4 + #782, #31
+  static level4 + #783, #2350
   static level4 + #784, #349
   static level4 + #785, #15
   static level4 + #786, #15
@@ -6405,15 +8138,15 @@ level4 : var #1200
   static level4 + #800, #3967
   static level4 + #801, #3967
   static level4 + #802, #3692
-  static level4 + #803, #15
+  static level4 + #803, #2835
   static level4 + #804, #15
   static level4 + #805, #349
   static level4 + #806, #349
-  static level4 + #807, #3967
+  static level4 + #807, #31
   static level4 + #808, #349
   static level4 + #809, #349
   static level4 + #810, #349
-  static level4 + #811, #3967
+  static level4 + #811, #31
   static level4 + #812, #349
   static level4 + #813, #15
   static level4 + #814, #15
@@ -6449,21 +8182,21 @@ level4 : var #1200
   static level4 + #842, #3692
   static level4 + #843, #15
   static level4 + #844, #15
-  static level4 + #845, #3967
-  static level4 + #846, #3967
-  static level4 + #847, #3967
+  static level4 + #845, #1301
+  static level4 + #846, #31
+  static level4 + #847, #31
   static level4 + #848, #349
-  static level4 + #849, #3967
+  static level4 + #849, #31
   static level4 + #850, #349
-  static level4 + #851, #3967
-  static level4 + #852, #3967
+  static level4 + #851, #31
+  static level4 + #852, #31
   static level4 + #853, #15
   static level4 + #854, #15
   static level4 + #855, #15
   static level4 + #856, #45
   static level4 + #857, #45
   static level4 + #858, #15
-  static level4 + #859, #15
+  static level4 + #859, #2835
   static level4 + #860, #15
   static level4 + #861, #349
   static level4 + #862, #349
@@ -6491,14 +8224,14 @@ level4 : var #1200
   static level4 + #882, #3692
   static level4 + #883, #15
   static level4 + #884, #15
-  static level4 + #885, #349
-  static level4 + #886, #349
-  static level4 + #887, #3967
-  static level4 + #888, #3967
-  static level4 + #889, #3967
-  static level4 + #890, #3967
-  static level4 + #891, #3967
-  static level4 + #892, #3967
+  static level4 + #885, #31
+  static level4 + #886, #31
+  static level4 + #887, #31
+  static level4 + #888, #31
+  static level4 + #889, #1556
+  static level4 + #890, #31
+  static level4 + #891, #31
+  static level4 + #892, #31
   static level4 + #893, #15
   static level4 + #894, #15
   static level4 + #895, #15
@@ -6507,10 +8240,10 @@ level4 : var #1200
   static level4 + #898, #15
   static level4 + #899, #15
   static level4 + #900, #15
-  static level4 + #901, #349
-  static level4 + #902, #349
+  static level4 + #901, #31
+  static level4 + #902, #31
   static level4 + #903, #349
-  static level4 + #904, #349
+  static level4 + #904, #31
   static level4 + #905, #15
   static level4 + #906, #15
   static level4 + #907, #15
@@ -6533,14 +8266,14 @@ level4 : var #1200
   static level4 + #922, #3692
   static level4 + #923, #15
   static level4 + #924, #15
-  static level4 + #925, #3967
-  static level4 + #926, #3967
-  static level4 + #927, #3967
-  static level4 + #928, #3967
-  static level4 + #929, #3967
-  static level4 + #930, #3967
-  static level4 + #931, #3967
-  static level4 + #932, #3967
+  static level4 + #925, #31
+  static level4 + #926, #31
+  static level4 + #927, #31
+  static level4 + #928, #31
+  static level4 + #929, #31
+  static level4 + #930, #31
+  static level4 + #931, #31
+  static level4 + #932, #31
   static level4 + #933, #15
   static level4 + #934, #15
   static level4 + #935, #15
@@ -6549,10 +8282,10 @@ level4 : var #1200
   static level4 + #938, #15
   static level4 + #939, #15
   static level4 + #940, #15
-  static level4 + #941, #3967
-  static level4 + #942, #3967
-  static level4 + #943, #3967
-  static level4 + #944, #3967
+  static level4 + #941, #31
+  static level4 + #942, #31
+  static level4 + #943, #31
+  static level4 + #944, #31
   static level4 + #945, #15
   static level4 + #946, #15
   static level4 + #947, #15
@@ -6577,10 +8310,10 @@ level4 : var #1200
   static level4 + #964, #15
   static level4 + #965, #349
   static level4 + #966, #349
-  static level4 + #967, #3967
+  static level4 + #967, #31
   static level4 + #968, #349
   static level4 + #969, #349
-  static level4 + #970, #3967
+  static level4 + #970, #31
   static level4 + #971, #349
   static level4 + #972, #349
   static level4 + #973, #15
@@ -6592,18 +8325,18 @@ level4 : var #1200
   static level4 + #979, #15
   static level4 + #980, #15
   static level4 + #981, #349
-  static level4 + #982, #349
-  static level4 + #983, #349
-  static level4 + #984, #349
-  static level4 + #985, #3967
+  static level4 + #982, #31
+  static level4 + #983, #31
+  static level4 + #984, #31
+  static level4 + #985, #31
   static level4 + #986, #349
   static level4 + #987, #349
   static level4 + #988, #349
-  static level4 + #989, #3967
+  static level4 + #989, #31
   static level4 + #990, #349
   static level4 + #991, #349
   static level4 + #992, #349
-  static level4 + #993, #3967
+  static level4 + #993, #31
   static level4 + #994, #349
   static level4 + #995, #349
   static level4 + #996, #349
@@ -6619,10 +8352,10 @@ level4 : var #1200
   static level4 + #1004, #15
   static level4 + #1005, #349
   static level4 + #1006, #349
-  static level4 + #1007, #3967
+  static level4 + #1007, #31
   static level4 + #1008, #349
   static level4 + #1009, #349
-  static level4 + #1010, #3967
+  static level4 + #1010, #31
   static level4 + #1011, #349
   static level4 + #1012, #349
   static level4 + #1013, #45
@@ -6634,18 +8367,18 @@ level4 : var #1200
   static level4 + #1019, #45
   static level4 + #1020, #45
   static level4 + #1021, #349
-  static level4 + #1022, #349
-  static level4 + #1023, #349
-  static level4 + #1024, #349
-  static level4 + #1025, #3967
+  static level4 + #1022, #31
+  static level4 + #1023, #31
+  static level4 + #1024, #31
+  static level4 + #1025, #31
   static level4 + #1026, #349
   static level4 + #1027, #349
   static level4 + #1028, #349
-  static level4 + #1029, #3967
+  static level4 + #1029, #31
   static level4 + #1030, #349
   static level4 + #1031, #349
   static level4 + #1032, #349
-  static level4 + #1033, #3967
+  static level4 + #1033, #31
   static level4 + #1034, #349
   static level4 + #1035, #349
   static level4 + #1036, #349
@@ -6657,14 +8390,14 @@ level4 : var #1200
   static level4 + #1040, #3967
   static level4 + #1041, #3967
   static level4 + #1042, #3692
-  static level4 + #1043, #15
+  static level4 + #1043, #2859
   static level4 + #1044, #15
   static level4 + #1045, #349
   static level4 + #1046, #349
-  static level4 + #1047, #3967
+  static level4 + #1047, #31
   static level4 + #1048, #349
   static level4 + #1049, #349
-  static level4 + #1050, #3967
+  static level4 + #1050, #31
   static level4 + #1051, #349
   static level4 + #1052, #349
   static level4 + #1053, #45
@@ -6676,18 +8409,18 @@ level4 : var #1200
   static level4 + #1059, #45
   static level4 + #1060, #45
   static level4 + #1061, #349
-  static level4 + #1062, #349
-  static level4 + #1063, #349
+  static level4 + #1062, #2350
+  static level4 + #1063, #31
   static level4 + #1064, #349
-  static level4 + #1065, #3967
+  static level4 + #1065, #31
   static level4 + #1066, #349
   static level4 + #1067, #349
   static level4 + #1068, #349
-  static level4 + #1069, #3967
+  static level4 + #1069, #31
   static level4 + #1070, #349
   static level4 + #1071, #349
   static level4 + #1072, #349
-  static level4 + #1073, #3967
+  static level4 + #1073, #31
   static level4 + #1074, #349
   static level4 + #1075, #349
   static level4 + #1076, #349
@@ -6821,6 +8554,3788 @@ level4 : var #1200
   static level4 + #1198, #3967
   static level4 + #1199, #3967
 
+PointsRules : var #1200
+  ;Linha 0
+  static PointsRules + #0, #3967
+  static PointsRules + #1, #3967
+  static PointsRules + #2, #3967
+  static PointsRules + #3, #3967
+  static PointsRules + #4, #3967
+  static PointsRules + #5, #3967
+  static PointsRules + #6, #3967
+  static PointsRules + #7, #3967
+  static PointsRules + #8, #3967
+  static PointsRules + #9, #3967
+  static PointsRules + #10, #3967
+  static PointsRules + #11, #3967
+  static PointsRules + #12, #3967
+  static PointsRules + #13, #3967
+  static PointsRules + #14, #3967
+  static PointsRules + #15, #3967
+  static PointsRules + #16, #3967
+  static PointsRules + #17, #3967
+  static PointsRules + #18, #3967
+  static PointsRules + #19, #3967
+  static PointsRules + #20, #3967
+  static PointsRules + #21, #3967
+  static PointsRules + #22, #3967
+  static PointsRules + #23, #3967
+  static PointsRules + #24, #3967
+  static PointsRules + #25, #3967
+  static PointsRules + #26, #3967
+  static PointsRules + #27, #3967
+  static PointsRules + #28, #3967
+  static PointsRules + #29, #3967
+  static PointsRules + #30, #3967
+  static PointsRules + #31, #3967
+  static PointsRules + #32, #3967
+  static PointsRules + #33, #3967
+  static PointsRules + #34, #3967
+  static PointsRules + #35, #3967
+  static PointsRules + #36, #3967
+  static PointsRules + #37, #3967
+  static PointsRules + #38, #3967
+  static PointsRules + #39, #3967
+
+  ;Linha 1
+  static PointsRules + #40, #3967
+  static PointsRules + #41, #3967
+  static PointsRules + #42, #3967
+  static PointsRules + #43, #3967
+  static PointsRules + #44, #3967
+  static PointsRules + #45, #3967
+  static PointsRules + #46, #3967
+  static PointsRules + #47, #3967
+  static PointsRules + #48, #3967
+  static PointsRules + #49, #3967
+  static PointsRules + #50, #3967
+  static PointsRules + #51, #3967
+  static PointsRules + #52, #3967
+  static PointsRules + #53, #3967
+  static PointsRules + #54, #3967
+  static PointsRules + #55, #3967
+  static PointsRules + #56, #3967
+  static PointsRules + #57, #3967
+  static PointsRules + #58, #3967
+  static PointsRules + #59, #3967
+  static PointsRules + #60, #3967
+  static PointsRules + #61, #3967
+  static PointsRules + #62, #3967
+  static PointsRules + #63, #3967
+  static PointsRules + #64, #3967
+  static PointsRules + #65, #3967
+  static PointsRules + #66, #3967
+  static PointsRules + #67, #3967
+  static PointsRules + #68, #3967
+  static PointsRules + #69, #3967
+  static PointsRules + #70, #3967
+  static PointsRules + #71, #3967
+  static PointsRules + #72, #3967
+  static PointsRules + #73, #3967
+  static PointsRules + #74, #3967
+  static PointsRules + #75, #3967
+  static PointsRules + #76, #3967
+  static PointsRules + #77, #3967
+  static PointsRules + #78, #3967
+  static PointsRules + #79, #3967
+
+  ;Linha 2
+  static PointsRules + #80, #3967
+  static PointsRules + #81, #3967
+  static PointsRules + #82, #3967
+  static PointsRules + #83, #3967
+  static PointsRules + #84, #3967
+  static PointsRules + #85, #3967
+  static PointsRules + #86, #3967
+  static PointsRules + #87, #3967
+  static PointsRules + #88, #3967
+  static PointsRules + #89, #3967
+  static PointsRules + #90, #82
+  static PointsRules + #91, #69
+  static PointsRules + #92, #71
+  static PointsRules + #93, #82
+  static PointsRules + #94, #65
+  static PointsRules + #95, #83
+  static PointsRules + #96, #3967
+  static PointsRules + #97, #68
+  static PointsRules + #98, #69
+  static PointsRules + #99, #3967
+  static PointsRules + #100, #80
+  static PointsRules + #101, #79
+  static PointsRules + #102, #78
+  static PointsRules + #103, #84
+  static PointsRules + #104, #85
+  static PointsRules + #105, #65
+  static PointsRules + #106, #67
+  static PointsRules + #107, #65
+  static PointsRules + #108, #79
+  static PointsRules + #109, #3967
+  static PointsRules + #110, #3967
+  static PointsRules + #111, #3967
+  static PointsRules + #112, #3967
+  static PointsRules + #113, #3967
+  static PointsRules + #114, #3967
+  static PointsRules + #115, #3967
+  static PointsRules + #116, #3967
+  static PointsRules + #117, #3967
+  static PointsRules + #118, #3967
+  static PointsRules + #119, #3967
+
+  ;Linha 3
+  static PointsRules + #120, #3967
+  static PointsRules + #121, #3967
+  static PointsRules + #122, #3967
+  static PointsRules + #123, #3967
+  static PointsRules + #124, #3967
+  static PointsRules + #125, #3967
+  static PointsRules + #126, #3967
+  static PointsRules + #127, #3967
+  static PointsRules + #128, #3967
+  static PointsRules + #129, #3967
+  static PointsRules + #130, #3967
+  static PointsRules + #131, #3967
+  static PointsRules + #132, #3967
+  static PointsRules + #133, #3967
+  static PointsRules + #134, #3967
+  static PointsRules + #135, #3967
+  static PointsRules + #136, #3967
+  static PointsRules + #137, #3967
+  static PointsRules + #138, #3967
+  static PointsRules + #139, #3967
+  static PointsRules + #140, #3967
+  static PointsRules + #141, #3967
+  static PointsRules + #142, #3967
+  static PointsRules + #143, #3967
+  static PointsRules + #144, #3967
+  static PointsRules + #145, #3967
+  static PointsRules + #146, #3967
+  static PointsRules + #147, #3967
+  static PointsRules + #148, #3967
+  static PointsRules + #149, #3967
+  static PointsRules + #150, #3967
+  static PointsRules + #151, #3967
+  static PointsRules + #152, #3967
+  static PointsRules + #153, #3967
+  static PointsRules + #154, #3967
+  static PointsRules + #155, #3967
+  static PointsRules + #156, #3967
+  static PointsRules + #157, #3967
+  static PointsRules + #158, #3967
+  static PointsRules + #159, #3967
+
+  ;Linha 4
+  static PointsRules + #160, #3967
+  static PointsRules + #161, #3967
+  static PointsRules + #162, #3967
+  static PointsRules + #163, #3967
+  static PointsRules + #164, #3967
+  static PointsRules + #165, #3967
+  static PointsRules + #166, #3967
+  static PointsRules + #167, #3967
+  static PointsRules + #168, #3967
+  static PointsRules + #169, #3967
+  static PointsRules + #170, #3967
+  static PointsRules + #171, #3967
+  static PointsRules + #172, #3967
+  static PointsRules + #173, #3967
+  static PointsRules + #174, #3967
+  static PointsRules + #175, #3967
+  static PointsRules + #176, #3967
+  static PointsRules + #177, #3967
+  static PointsRules + #178, #3967
+  static PointsRules + #179, #3967
+  static PointsRules + #180, #3967
+  static PointsRules + #181, #3967
+  static PointsRules + #182, #3967
+  static PointsRules + #183, #3967
+  static PointsRules + #184, #3967
+  static PointsRules + #185, #3967
+  static PointsRules + #186, #3967
+  static PointsRules + #187, #3967
+  static PointsRules + #188, #3967
+  static PointsRules + #189, #3967
+  static PointsRules + #190, #3967
+  static PointsRules + #191, #3967
+  static PointsRules + #192, #3967
+  static PointsRules + #193, #3967
+  static PointsRules + #194, #3967
+  static PointsRules + #195, #3967
+  static PointsRules + #196, #3967
+  static PointsRules + #197, #3967
+  static PointsRules + #198, #3967
+  static PointsRules + #199, #3967
+
+  ;Linha 5
+  static PointsRules + #200, #3967
+  static PointsRules + #201, #3967
+  static PointsRules + #202, #3967
+  static PointsRules + #203, #3967
+  static PointsRules + #204, #3967
+  static PointsRules + #205, #3967
+  static PointsRules + #206, #3967
+  static PointsRules + #207, #3967
+  static PointsRules + #208, #3967
+  static PointsRules + #209, #3967
+  static PointsRules + #210, #3967
+  static PointsRules + #211, #3967
+  static PointsRules + #212, #3967
+  static PointsRules + #213, #3967
+  static PointsRules + #214, #3967
+  static PointsRules + #215, #3967
+  static PointsRules + #216, #3967
+  static PointsRules + #217, #3967
+  static PointsRules + #218, #3967
+  static PointsRules + #219, #3967
+  static PointsRules + #220, #3967
+  static PointsRules + #221, #3967
+  static PointsRules + #222, #3967
+  static PointsRules + #223, #3967
+  static PointsRules + #224, #3967
+  static PointsRules + #225, #3967
+  static PointsRules + #226, #3967
+  static PointsRules + #227, #3967
+  static PointsRules + #228, #3967
+  static PointsRules + #229, #3967
+  static PointsRules + #230, #3967
+  static PointsRules + #231, #3967
+  static PointsRules + #232, #3967
+  static PointsRules + #233, #3967
+  static PointsRules + #234, #3967
+  static PointsRules + #235, #3967
+  static PointsRules + #236, #3967
+  static PointsRules + #237, #3967
+  static PointsRules + #238, #3967
+  static PointsRules + #239, #3967
+
+  ;Linha 6
+  static PointsRules + #240, #3967
+  static PointsRules + #241, #3967
+  static PointsRules + #242, #3967
+  static PointsRules + #243, #3967
+  static PointsRules + #244, #2909
+  static PointsRules + #245, #2909
+  static PointsRules + #246, #2909
+  static PointsRules + #247, #2909
+  static PointsRules + #248, #3967
+  static PointsRules + #249, #3967
+  static PointsRules + #250, #3967
+  static PointsRules + #251, #3967
+  static PointsRules + #252, #3967
+  static PointsRules + #253, #3967
+  static PointsRules + #254, #3967
+  static PointsRules + #255, #3967
+  static PointsRules + #256, #3967
+  static PointsRules + #257, #3967
+  static PointsRules + #258, #3967
+  static PointsRules + #259, #3967
+  static PointsRules + #260, #3967
+  static PointsRules + #261, #3967
+  static PointsRules + #262, #3967
+  static PointsRules + #263, #3967
+  static PointsRules + #264, #3967
+  static PointsRules + #265, #3967
+  static PointsRules + #266, #3967
+  static PointsRules + #267, #3967
+  static PointsRules + #268, #3967
+  static PointsRules + #269, #3967
+  static PointsRules + #270, #3967
+  static PointsRules + #271, #3967
+  static PointsRules + #272, #3967
+  static PointsRules + #273, #3967
+  static PointsRules + #274, #3967
+  static PointsRules + #275, #3967
+  static PointsRules + #276, #3967
+  static PointsRules + #277, #3967
+  static PointsRules + #278, #3967
+  static PointsRules + #279, #3967
+
+  ;Linha 7
+  static PointsRules + #280, #3967
+  static PointsRules + #281, #3967
+  static PointsRules + #282, #3967
+  static PointsRules + #283, #2909
+  static PointsRules + #284, #2909
+  static PointsRules + #285, #3967
+  static PointsRules + #286, #2909
+  static PointsRules + #287, #2909
+  static PointsRules + #288, #2909
+  static PointsRules + #289, #3967
+  static PointsRules + #290, #3967
+  static PointsRules + #291, #77
+  static PointsRules + #292, #79
+  static PointsRules + #293, #69
+  static PointsRules + #294, #68
+  static PointsRules + #295, #65
+  static PointsRules + #296, #83
+  static PointsRules + #297, #3967
+  static PointsRules + #298, #71
+  static PointsRules + #299, #65
+  static PointsRules + #300, #82
+  static PointsRules + #301, #65
+  static PointsRules + #302, #78
+  static PointsRules + #303, #84
+  static PointsRules + #304, #69
+  static PointsRules + #305, #77
+  static PointsRules + #306, #3967
+  static PointsRules + #307, #3967
+  static PointsRules + #308, #3967
+  static PointsRules + #309, #3967
+  static PointsRules + #310, #3967
+  static PointsRules + #311, #3967
+  static PointsRules + #312, #3967
+  static PointsRules + #313, #3967
+  static PointsRules + #314, #3967
+  static PointsRules + #315, #3967
+  static PointsRules + #316, #3967
+  static PointsRules + #317, #3967
+  static PointsRules + #318, #3967
+  static PointsRules + #319, #3967
+
+  ;Linha 8
+  static PointsRules + #320, #3967
+  static PointsRules + #321, #3967
+  static PointsRules + #322, #3967
+  static PointsRules + #323, #2909
+  static PointsRules + #324, #3967
+  static PointsRules + #325, #3967
+  static PointsRules + #326, #3967
+  static PointsRules + #327, #2909
+  static PointsRules + #328, #2909
+  static PointsRules + #329, #3967
+  static PointsRules + #330, #3967
+  static PointsRules + #331, #3967
+  static PointsRules + #332, #3967
+  static PointsRules + #333, #3967
+  static PointsRules + #334, #3967
+  static PointsRules + #335, #3967
+  static PointsRules + #336, #3967
+  static PointsRules + #337, #3967
+  static PointsRules + #338, #3967
+  static PointsRules + #339, #3967
+  static PointsRules + #340, #3967
+  static PointsRules + #341, #3967
+  static PointsRules + #342, #3967
+  static PointsRules + #343, #3967
+  static PointsRules + #344, #3967
+  static PointsRules + #345, #3967
+  static PointsRules + #346, #3967
+  static PointsRules + #347, #3967
+  static PointsRules + #348, #3967
+  static PointsRules + #349, #3967
+  static PointsRules + #350, #3967
+  static PointsRules + #351, #3967
+  static PointsRules + #352, #3967
+  static PointsRules + #353, #3967
+  static PointsRules + #354, #3967
+  static PointsRules + #355, #3967
+  static PointsRules + #356, #3967
+  static PointsRules + #357, #3967
+  static PointsRules + #358, #3967
+  static PointsRules + #359, #3967
+
+  ;Linha 9
+  static PointsRules + #360, #3967
+  static PointsRules + #361, #3967
+  static PointsRules + #362, #3967
+  static PointsRules + #363, #2909
+  static PointsRules + #364, #2909
+  static PointsRules + #365, #3967
+  static PointsRules + #366, #2909
+  static PointsRules + #367, #2909
+  static PointsRules + #368, #2909
+  static PointsRules + #369, #3967
+  static PointsRules + #370, #3967
+  static PointsRules + #371, #49
+  static PointsRules + #372, #48
+  static PointsRules + #373, #48
+  static PointsRules + #374, #3967
+  static PointsRules + #375, #80
+  static PointsRules + #376, #79
+  static PointsRules + #377, #78
+  static PointsRules + #378, #84
+  static PointsRules + #379, #79
+  static PointsRules + #380, #83
+  static PointsRules + #381, #3967
+  static PointsRules + #382, #3967
+  static PointsRules + #383, #3967
+  static PointsRules + #384, #3967
+  static PointsRules + #385, #3967
+  static PointsRules + #386, #3967
+  static PointsRules + #387, #3967
+  static PointsRules + #388, #3967
+  static PointsRules + #389, #3967
+  static PointsRules + #390, #3967
+  static PointsRules + #391, #3967
+  static PointsRules + #392, #3967
+  static PointsRules + #393, #3967
+  static PointsRules + #394, #3967
+  static PointsRules + #395, #3967
+  static PointsRules + #396, #3967
+  static PointsRules + #397, #3967
+  static PointsRules + #398, #3967
+  static PointsRules + #399, #3967
+
+  ;Linha 10
+  static PointsRules + #400, #3967
+  static PointsRules + #401, #3967
+  static PointsRules + #402, #3967
+  static PointsRules + #403, #2909
+  static PointsRules + #404, #2909
+  static PointsRules + #405, #2909
+  static PointsRules + #406, #2909
+  static PointsRules + #407, #2909
+  static PointsRules + #408, #2909
+  static PointsRules + #409, #3967
+  static PointsRules + #410, #3967
+  static PointsRules + #411, #3967
+  static PointsRules + #412, #3967
+  static PointsRules + #413, #3967
+  static PointsRules + #414, #3967
+  static PointsRules + #415, #3967
+  static PointsRules + #416, #3967
+  static PointsRules + #417, #3967
+  static PointsRules + #418, #3967
+  static PointsRules + #419, #3967
+  static PointsRules + #420, #3967
+  static PointsRules + #421, #3967
+  static PointsRules + #422, #3967
+  static PointsRules + #423, #3967
+  static PointsRules + #424, #3967
+  static PointsRules + #425, #3967
+  static PointsRules + #426, #3967
+  static PointsRules + #427, #3967
+  static PointsRules + #428, #3967
+  static PointsRules + #429, #3967
+  static PointsRules + #430, #3967
+  static PointsRules + #431, #3967
+  static PointsRules + #432, #3967
+  static PointsRules + #433, #3967
+  static PointsRules + #434, #3967
+  static PointsRules + #435, #3967
+  static PointsRules + #436, #3967
+  static PointsRules + #437, #3967
+  static PointsRules + #438, #3967
+  static PointsRules + #439, #3967
+
+  ;Linha 11
+  static PointsRules + #440, #3967
+  static PointsRules + #441, #3967
+  static PointsRules + #442, #3967
+  static PointsRules + #443, #3967
+  static PointsRules + #444, #2909
+  static PointsRules + #445, #2909
+  static PointsRules + #446, #2909
+  static PointsRules + #447, #2909
+  static PointsRules + #448, #3967
+  static PointsRules + #449, #3967
+  static PointsRules + #450, #3967
+  static PointsRules + #451, #3967
+  static PointsRules + #452, #3967
+  static PointsRules + #453, #3967
+  static PointsRules + #454, #3967
+  static PointsRules + #455, #3967
+  static PointsRules + #456, #3967
+  static PointsRules + #457, #3967
+  static PointsRules + #458, #3967
+  static PointsRules + #459, #3967
+  static PointsRules + #460, #3967
+  static PointsRules + #461, #3967
+  static PointsRules + #462, #3967
+  static PointsRules + #463, #3967
+  static PointsRules + #464, #3967
+  static PointsRules + #465, #3967
+  static PointsRules + #466, #3967
+  static PointsRules + #467, #3967
+  static PointsRules + #468, #3967
+  static PointsRules + #469, #3967
+  static PointsRules + #470, #3967
+  static PointsRules + #471, #3967
+  static PointsRules + #472, #3967
+  static PointsRules + #473, #3967
+  static PointsRules + #474, #3967
+  static PointsRules + #475, #3967
+  static PointsRules + #476, #3967
+  static PointsRules + #477, #3967
+  static PointsRules + #478, #3967
+  static PointsRules + #479, #3967
+
+  ;Linha 12
+  static PointsRules + #480, #3967
+  static PointsRules + #481, #3967
+  static PointsRules + #482, #3967
+  static PointsRules + #483, #3967
+  static PointsRules + #484, #3967
+  static PointsRules + #485, #3967
+  static PointsRules + #486, #3967
+  static PointsRules + #487, #3967
+  static PointsRules + #488, #3967
+  static PointsRules + #489, #3967
+  static PointsRules + #490, #3967
+  static PointsRules + #491, #3967
+  static PointsRules + #492, #3967
+  static PointsRules + #493, #3967
+  static PointsRules + #494, #3967
+  static PointsRules + #495, #3967
+  static PointsRules + #496, #3967
+  static PointsRules + #497, #3967
+  static PointsRules + #498, #3967
+  static PointsRules + #499, #3967
+  static PointsRules + #500, #3967
+  static PointsRules + #501, #3967
+  static PointsRules + #502, #3967
+  static PointsRules + #503, #3967
+  static PointsRules + #504, #3967
+  static PointsRules + #505, #3967
+  static PointsRules + #506, #3967
+  static PointsRules + #507, #3967
+  static PointsRules + #508, #3967
+  static PointsRules + #509, #3967
+  static PointsRules + #510, #3967
+  static PointsRules + #511, #3967
+  static PointsRules + #512, #3967
+  static PointsRules + #513, #3967
+  static PointsRules + #514, #3967
+  static PointsRules + #515, #3967
+  static PointsRules + #516, #3967
+  static PointsRules + #517, #3967
+  static PointsRules + #518, #3967
+  static PointsRules + #519, #3967
+
+  ;Linha 13
+  static PointsRules + #520, #3967
+  static PointsRules + #521, #3967
+  static PointsRules + #522, #3967
+  static PointsRules + #523, #3967
+  static PointsRules + #524, #3967
+  static PointsRules + #525, #3967
+  static PointsRules + #526, #3967
+  static PointsRules + #527, #3967
+  static PointsRules + #528, #3967
+  static PointsRules + #529, #3967
+  static PointsRules + #530, #3967
+  static PointsRules + #531, #3967
+  static PointsRules + #532, #3967
+  static PointsRules + #533, #3967
+  static PointsRules + #534, #3967
+  static PointsRules + #535, #3967
+  static PointsRules + #536, #3967
+  static PointsRules + #537, #3967
+  static PointsRules + #538, #3967
+  static PointsRules + #539, #3967
+  static PointsRules + #540, #3967
+  static PointsRules + #541, #3967
+  static PointsRules + #542, #3967
+  static PointsRules + #543, #3967
+  static PointsRules + #544, #3967
+  static PointsRules + #545, #3967
+  static PointsRules + #546, #3967
+  static PointsRules + #547, #3967
+  static PointsRules + #548, #3967
+  static PointsRules + #549, #3967
+  static PointsRules + #550, #3967
+  static PointsRules + #551, #3967
+  static PointsRules + #552, #3967
+  static PointsRules + #553, #3967
+  static PointsRules + #554, #3967
+  static PointsRules + #555, #3967
+  static PointsRules + #556, #3967
+  static PointsRules + #557, #3967
+  static PointsRules + #558, #3967
+  static PointsRules + #559, #3967
+
+  ;Linha 14
+  static PointsRules + #560, #3967
+  static PointsRules + #561, #3967
+  static PointsRules + #562, #3967
+  static PointsRules + #563, #1629
+  static PointsRules + #564, #1629
+  static PointsRules + #565, #1629
+  static PointsRules + #566, #1629
+  static PointsRules + #567, #1629
+  static PointsRules + #568, #1629
+  static PointsRules + #569, #3967
+  static PointsRules + #570, #3967
+  static PointsRules + #571, #3967
+  static PointsRules + #572, #3967
+  static PointsRules + #573, #3967
+  static PointsRules + #574, #3967
+  static PointsRules + #575, #3967
+  static PointsRules + #576, #3967
+  static PointsRules + #577, #3967
+  static PointsRules + #578, #3967
+  static PointsRules + #579, #3967
+  static PointsRules + #580, #3967
+  static PointsRules + #581, #3967
+  static PointsRules + #582, #3967
+  static PointsRules + #583, #3967
+  static PointsRules + #584, #3967
+  static PointsRules + #585, #3967
+  static PointsRules + #586, #3967
+  static PointsRules + #587, #3967
+  static PointsRules + #588, #3967
+  static PointsRules + #589, #3967
+  static PointsRules + #590, #3967
+  static PointsRules + #591, #3967
+  static PointsRules + #592, #3967
+  static PointsRules + #593, #3967
+  static PointsRules + #594, #3967
+  static PointsRules + #595, #3967
+  static PointsRules + #596, #3967
+  static PointsRules + #597, #3967
+  static PointsRules + #598, #3967
+  static PointsRules + #599, #3967
+
+  ;Linha 15
+  static PointsRules + #600, #3967
+  static PointsRules + #601, #3967
+  static PointsRules + #602, #1629
+  static PointsRules + #603, #3967
+  static PointsRules + #604, #3967
+  static PointsRules + #605, #1629
+  static PointsRules + #606, #1629
+  static PointsRules + #607, #1629
+  static PointsRules + #608, #1629
+  static PointsRules + #609, #1629
+  static PointsRules + #610, #3967
+  static PointsRules + #611, #3967
+  static PointsRules + #612, #68
+  static PointsRules + #613, #73
+  static PointsRules + #614, #65
+  static PointsRules + #615, #77
+  static PointsRules + #616, #65
+  static PointsRules + #617, #78
+  static PointsRules + #618, #84
+  static PointsRules + #619, #69
+  static PointsRules + #620, #83
+  static PointsRules + #621, #3967
+  static PointsRules + #622, #71
+  static PointsRules + #623, #65
+  static PointsRules + #624, #82
+  static PointsRules + #625, #65
+  static PointsRules + #626, #78
+  static PointsRules + #627, #84
+  static PointsRules + #628, #69
+  static PointsRules + #629, #77
+  static PointsRules + #630, #3967
+  static PointsRules + #631, #3967
+  static PointsRules + #632, #3967
+  static PointsRules + #633, #3967
+  static PointsRules + #634, #3967
+  static PointsRules + #635, #3967
+  static PointsRules + #636, #3967
+  static PointsRules + #637, #3967
+  static PointsRules + #638, #3967
+  static PointsRules + #639, #3967
+
+  ;Linha 16
+  static PointsRules + #640, #3967
+  static PointsRules + #641, #1629
+  static PointsRules + #642, #3967
+  static PointsRules + #643, #3967
+  static PointsRules + #644, #1629
+  static PointsRules + #645, #1629
+  static PointsRules + #646, #1629
+  static PointsRules + #647, #1629
+  static PointsRules + #648, #1629
+  static PointsRules + #649, #1629
+  static PointsRules + #650, #1629
+  static PointsRules + #651, #3967
+  static PointsRules + #652, #3967
+  static PointsRules + #653, #3967
+  static PointsRules + #654, #3967
+  static PointsRules + #655, #3967
+  static PointsRules + #656, #3967
+  static PointsRules + #657, #3967
+  static PointsRules + #658, #3967
+  static PointsRules + #659, #3967
+  static PointsRules + #660, #3967
+  static PointsRules + #661, #3967
+  static PointsRules + #662, #3967
+  static PointsRules + #663, #3967
+  static PointsRules + #664, #3967
+  static PointsRules + #665, #3967
+  static PointsRules + #666, #3967
+  static PointsRules + #667, #3967
+  static PointsRules + #668, #3967
+  static PointsRules + #669, #3967
+  static PointsRules + #670, #3967
+  static PointsRules + #671, #3967
+  static PointsRules + #672, #3967
+  static PointsRules + #673, #3967
+  static PointsRules + #674, #3967
+  static PointsRules + #675, #3967
+  static PointsRules + #676, #3967
+  static PointsRules + #677, #3967
+  static PointsRules + #678, #3967
+  static PointsRules + #679, #3967
+
+  ;Linha 17
+  static PointsRules + #680, #3967
+  static PointsRules + #681, #3967
+  static PointsRules + #682, #1629
+  static PointsRules + #683, #1629
+  static PointsRules + #684, #1629
+  static PointsRules + #685, #1629
+  static PointsRules + #686, #1629
+  static PointsRules + #687, #1629
+  static PointsRules + #688, #1629
+  static PointsRules + #689, #1629
+  static PointsRules + #690, #3967
+  static PointsRules + #691, #3967
+  static PointsRules + #692, #50
+  static PointsRules + #693, #53
+  static PointsRules + #694, #48
+  static PointsRules + #695, #3967
+  static PointsRules + #696, #53
+  static PointsRules + #697, #48
+  static PointsRules + #698, #48
+  static PointsRules + #699, #3967
+  static PointsRules + #700, #79
+  static PointsRules + #701, #85
+  static PointsRules + #702, #3967
+  static PointsRules + #703, #49
+  static PointsRules + #704, #48
+  static PointsRules + #705, #48
+  static PointsRules + #706, #48
+  static PointsRules + #707, #3967
+  static PointsRules + #708, #80
+  static PointsRules + #709, #79
+  static PointsRules + #710, #78
+  static PointsRules + #711, #84
+  static PointsRules + #712, #79
+  static PointsRules + #713, #83
+  static PointsRules + #714, #3967
+  static PointsRules + #715, #3967
+  static PointsRules + #716, #3967
+  static PointsRules + #717, #3967
+  static PointsRules + #718, #3967
+  static PointsRules + #719, #3967
+
+  ;Linha 18
+  static PointsRules + #720, #3967
+  static PointsRules + #721, #3967
+  static PointsRules + #722, #3967
+  static PointsRules + #723, #1629
+  static PointsRules + #724, #1629
+  static PointsRules + #725, #1629
+  static PointsRules + #726, #1629
+  static PointsRules + #727, #1629
+  static PointsRules + #728, #1629
+  static PointsRules + #729, #3967
+  static PointsRules + #730, #3967
+  static PointsRules + #731, #3967
+  static PointsRules + #732, #3967
+  static PointsRules + #733, #3967
+  static PointsRules + #734, #3967
+  static PointsRules + #735, #3967
+  static PointsRules + #736, #3967
+  static PointsRules + #737, #3967
+  static PointsRules + #738, #3967
+  static PointsRules + #739, #3967
+  static PointsRules + #740, #3967
+  static PointsRules + #741, #3967
+  static PointsRules + #742, #3967
+  static PointsRules + #743, #3967
+  static PointsRules + #744, #3967
+  static PointsRules + #745, #3967
+  static PointsRules + #746, #3967
+  static PointsRules + #747, #3967
+  static PointsRules + #748, #3967
+  static PointsRules + #749, #3967
+  static PointsRules + #750, #3967
+  static PointsRules + #751, #3967
+  static PointsRules + #752, #3967
+  static PointsRules + #753, #3967
+  static PointsRules + #754, #3967
+  static PointsRules + #755, #3967
+  static PointsRules + #756, #3967
+  static PointsRules + #757, #3967
+  static PointsRules + #758, #3967
+  static PointsRules + #759, #3967
+
+  ;Linha 19
+  static PointsRules + #760, #3967
+  static PointsRules + #761, #3967
+  static PointsRules + #762, #3967
+  static PointsRules + #763, #3967
+  static PointsRules + #764, #1629
+  static PointsRules + #765, #1629
+  static PointsRules + #766, #1629
+  static PointsRules + #767, #1629
+  static PointsRules + #768, #3967
+  static PointsRules + #769, #3967
+  static PointsRules + #770, #3967
+  static PointsRules + #771, #3967
+  static PointsRules + #772, #65
+  static PointsRules + #773, #76
+  static PointsRules + #774, #69
+  static PointsRules + #775, #65
+  static PointsRules + #776, #84
+  static PointsRules + #777, #79
+  static PointsRules + #778, #82
+  static PointsRules + #779, #73
+  static PointsRules + #780, #65
+  static PointsRules + #781, #77
+  static PointsRules + #782, #69
+  static PointsRules + #783, #78
+  static PointsRules + #784, #84
+  static PointsRules + #785, #69
+  static PointsRules + #786, #3967
+  static PointsRules + #787, #3967
+  static PointsRules + #788, #3967
+  static PointsRules + #789, #3967
+  static PointsRules + #790, #3967
+  static PointsRules + #791, #3967
+  static PointsRules + #792, #3967
+  static PointsRules + #793, #3967
+  static PointsRules + #794, #3967
+  static PointsRules + #795, #3967
+  static PointsRules + #796, #3967
+  static PointsRules + #797, #3967
+  static PointsRules + #798, #3967
+  static PointsRules + #799, #3967
+
+  ;Linha 20
+  static PointsRules + #800, #3967
+  static PointsRules + #801, #3967
+  static PointsRules + #802, #3967
+  static PointsRules + #803, #3967
+  static PointsRules + #804, #3967
+  static PointsRules + #805, #1629
+  static PointsRules + #806, #1629
+  static PointsRules + #807, #3967
+  static PointsRules + #808, #3967
+  static PointsRules + #809, #3967
+  static PointsRules + #810, #3967
+  static PointsRules + #811, #3967
+  static PointsRules + #812, #3967
+  static PointsRules + #813, #3967
+  static PointsRules + #814, #3967
+  static PointsRules + #815, #3967
+  static PointsRules + #816, #3967
+  static PointsRules + #817, #3967
+  static PointsRules + #818, #3967
+  static PointsRules + #819, #3967
+  static PointsRules + #820, #3967
+  static PointsRules + #821, #3967
+  static PointsRules + #822, #3967
+  static PointsRules + #823, #3967
+  static PointsRules + #824, #3967
+  static PointsRules + #825, #3967
+  static PointsRules + #826, #3967
+  static PointsRules + #827, #3967
+  static PointsRules + #828, #3967
+  static PointsRules + #829, #3967
+  static PointsRules + #830, #3967
+  static PointsRules + #831, #3967
+  static PointsRules + #832, #3967
+  static PointsRules + #833, #3967
+  static PointsRules + #834, #3967
+  static PointsRules + #835, #3967
+  static PointsRules + #836, #3967
+  static PointsRules + #837, #3967
+  static PointsRules + #838, #3967
+  static PointsRules + #839, #3967
+
+  ;Linha 21
+  static PointsRules + #840, #3967
+  static PointsRules + #841, #3967
+  static PointsRules + #842, #3967
+  static PointsRules + #843, #3967
+  static PointsRules + #844, #3967
+  static PointsRules + #845, #3967
+  static PointsRules + #846, #3967
+  static PointsRules + #847, #3967
+  static PointsRules + #848, #3967
+  static PointsRules + #849, #3967
+  static PointsRules + #850, #3967
+  static PointsRules + #851, #3967
+  static PointsRules + #852, #3967
+  static PointsRules + #853, #3967
+  static PointsRules + #854, #3967
+  static PointsRules + #855, #3967
+  static PointsRules + #856, #3967
+  static PointsRules + #857, #3967
+  static PointsRules + #858, #3967
+  static PointsRules + #859, #3967
+  static PointsRules + #860, #3967
+  static PointsRules + #861, #3967
+  static PointsRules + #862, #3967
+  static PointsRules + #863, #3967
+  static PointsRules + #864, #3967
+  static PointsRules + #865, #3967
+  static PointsRules + #866, #3967
+  static PointsRules + #867, #3967
+  static PointsRules + #868, #3967
+  static PointsRules + #869, #3967
+  static PointsRules + #870, #3967
+  static PointsRules + #871, #3967
+  static PointsRules + #872, #3967
+  static PointsRules + #873, #3967
+  static PointsRules + #874, #3967
+  static PointsRules + #875, #3967
+  static PointsRules + #876, #3967
+  static PointsRules + #877, #3967
+  static PointsRules + #878, #3967
+  static PointsRules + #879, #3967
+
+  ;Linha 22
+  static PointsRules + #880, #3967
+  static PointsRules + #881, #3967
+  static PointsRules + #882, #3967
+  static PointsRules + #883, #3967
+  static PointsRules + #884, #3967
+  static PointsRules + #885, #3967
+  static PointsRules + #886, #3967
+  static PointsRules + #887, #3967
+  static PointsRules + #888, #3967
+  static PointsRules + #889, #3967
+  static PointsRules + #890, #3967
+  static PointsRules + #891, #3967
+  static PointsRules + #892, #3967
+  static PointsRules + #893, #3967
+  static PointsRules + #894, #3967
+  static PointsRules + #895, #3967
+  static PointsRules + #896, #3967
+  static PointsRules + #897, #3967
+  static PointsRules + #898, #3967
+  static PointsRules + #899, #3967
+  static PointsRules + #900, #3967
+  static PointsRules + #901, #3967
+  static PointsRules + #902, #3967
+  static PointsRules + #903, #3967
+  static PointsRules + #904, #3967
+  static PointsRules + #905, #3967
+  static PointsRules + #906, #3967
+  static PointsRules + #907, #3967
+  static PointsRules + #908, #3967
+  static PointsRules + #909, #3967
+  static PointsRules + #910, #3967
+  static PointsRules + #911, #3967
+  static PointsRules + #912, #3967
+  static PointsRules + #913, #3967
+  static PointsRules + #914, #3967
+  static PointsRules + #915, #3967
+  static PointsRules + #916, #3967
+  static PointsRules + #917, #3967
+  static PointsRules + #918, #3967
+  static PointsRules + #919, #3967
+
+  ;Linha 23
+  static PointsRules + #920, #3967
+  static PointsRules + #921, #3967
+  static PointsRules + #922, #3967
+  static PointsRules + #923, #3967
+  static PointsRules + #924, #3967
+  static PointsRules + #925, #3967
+  static PointsRules + #926, #3967
+  static PointsRules + #927, #3967
+  static PointsRules + #928, #3967
+  static PointsRules + #929, #3967
+  static PointsRules + #930, #3967
+  static PointsRules + #931, #3967
+  static PointsRules + #932, #3967
+  static PointsRules + #933, #3967
+  static PointsRules + #934, #3967
+  static PointsRules + #935, #3967
+  static PointsRules + #936, #3967
+  static PointsRules + #937, #3967
+  static PointsRules + #938, #3967
+  static PointsRules + #939, #3967
+  static PointsRules + #940, #3967
+  static PointsRules + #941, #3967
+  static PointsRules + #942, #3967
+  static PointsRules + #943, #3967
+  static PointsRules + #944, #3967
+  static PointsRules + #945, #3967
+  static PointsRules + #946, #3967
+  static PointsRules + #947, #3967
+  static PointsRules + #948, #3967
+  static PointsRules + #949, #3967
+  static PointsRules + #950, #3967
+  static PointsRules + #951, #3967
+  static PointsRules + #952, #3967
+  static PointsRules + #953, #3967
+  static PointsRules + #954, #3967
+  static PointsRules + #955, #3967
+  static PointsRules + #956, #3967
+  static PointsRules + #957, #3967
+  static PointsRules + #958, #3967
+  static PointsRules + #959, #3967
+
+  ;Linha 24
+  static PointsRules + #960, #3967
+  static PointsRules + #961, #3967
+  static PointsRules + #962, #3967
+  static PointsRules + #963, #3967
+  static PointsRules + #964, #3967
+  static PointsRules + #965, #3967
+  static PointsRules + #966, #3967
+  static PointsRules + #967, #3967
+  static PointsRules + #968, #3967
+  static PointsRules + #969, #3967
+  static PointsRules + #970, #3967
+  static PointsRules + #971, #3967
+  static PointsRules + #972, #3967
+  static PointsRules + #973, #3967
+  static PointsRules + #974, #3967
+  static PointsRules + #975, #3967
+  static PointsRules + #976, #3967
+  static PointsRules + #977, #3967
+  static PointsRules + #978, #3967
+  static PointsRules + #979, #3967
+  static PointsRules + #980, #3967
+  static PointsRules + #981, #3967
+  static PointsRules + #982, #3967
+  static PointsRules + #983, #3967
+  static PointsRules + #984, #3967
+  static PointsRules + #985, #3967
+  static PointsRules + #986, #3967
+  static PointsRules + #987, #3967
+  static PointsRules + #988, #3967
+  static PointsRules + #989, #3967
+  static PointsRules + #990, #3967
+  static PointsRules + #991, #3967
+  static PointsRules + #992, #3967
+  static PointsRules + #993, #3967
+  static PointsRules + #994, #3967
+  static PointsRules + #995, #3967
+  static PointsRules + #996, #3967
+  static PointsRules + #997, #3967
+  static PointsRules + #998, #3967
+  static PointsRules + #999, #3967
+
+  ;Linha 25
+  static PointsRules + #1000, #3967
+  static PointsRules + #1001, #3967
+  static PointsRules + #1002, #3967
+  static PointsRules + #1003, #3967
+  static PointsRules + #1004, #3967
+  static PointsRules + #1005, #3967
+  static PointsRules + #1006, #3967
+  static PointsRules + #1007, #3967
+  static PointsRules + #1008, #3967
+  static PointsRules + #1009, #80
+  static PointsRules + #1010, #82
+  static PointsRules + #1011, #69
+  static PointsRules + #1012, #83
+  static PointsRules + #1013, #83
+  static PointsRules + #1014, #3967
+  static PointsRules + #1015, #88
+  static PointsRules + #1016, #3967
+  static PointsRules + #1017, #84
+  static PointsRules + #1018, #79
+  static PointsRules + #1019, #3967
+  static PointsRules + #1020, #67
+  static PointsRules + #1021, #79
+  static PointsRules + #1022, #78
+  static PointsRules + #1023, #84
+  static PointsRules + #1024, #73
+  static PointsRules + #1025, #78
+  static PointsRules + #1026, #85
+  static PointsRules + #1027, #69
+  static PointsRules + #1028, #3967
+  static PointsRules + #1029, #3967
+  static PointsRules + #1030, #3967
+  static PointsRules + #1031, #3967
+  static PointsRules + #1032, #3967
+  static PointsRules + #1033, #3967
+  static PointsRules + #1034, #3967
+  static PointsRules + #1035, #3967
+  static PointsRules + #1036, #3967
+  static PointsRules + #1037, #3967
+  static PointsRules + #1038, #3967
+  static PointsRules + #1039, #3967
+
+  ;Linha 26
+  static PointsRules + #1040, #3967
+  static PointsRules + #1041, #3967
+  static PointsRules + #1042, #3967
+  static PointsRules + #1043, #3967
+  static PointsRules + #1044, #3967
+  static PointsRules + #1045, #3967
+  static PointsRules + #1046, #3967
+  static PointsRules + #1047, #3967
+  static PointsRules + #1048, #3967
+  static PointsRules + #1049, #3967
+  static PointsRules + #1050, #3967
+  static PointsRules + #1051, #3967
+  static PointsRules + #1052, #3967
+  static PointsRules + #1053, #3967
+  static PointsRules + #1054, #3967
+  static PointsRules + #1055, #3967
+  static PointsRules + #1056, #3967
+  static PointsRules + #1057, #3967
+  static PointsRules + #1058, #3967
+  static PointsRules + #1059, #3967
+  static PointsRules + #1060, #3967
+  static PointsRules + #1061, #3967
+  static PointsRules + #1062, #3967
+  static PointsRules + #1063, #3967
+  static PointsRules + #1064, #3967
+  static PointsRules + #1065, #3967
+  static PointsRules + #1066, #3967
+  static PointsRules + #1067, #3967
+  static PointsRules + #1068, #3967
+  static PointsRules + #1069, #3967
+  static PointsRules + #1070, #3967
+  static PointsRules + #1071, #3967
+  static PointsRules + #1072, #3967
+  static PointsRules + #1073, #3967
+  static PointsRules + #1074, #3967
+  static PointsRules + #1075, #3967
+  static PointsRules + #1076, #3967
+  static PointsRules + #1077, #3967
+  static PointsRules + #1078, #3967
+  static PointsRules + #1079, #3967
+
+  ;Linha 27
+  static PointsRules + #1080, #3967
+  static PointsRules + #1081, #3967
+  static PointsRules + #1082, #3967
+  static PointsRules + #1083, #3967
+  static PointsRules + #1084, #3967
+  static PointsRules + #1085, #3967
+  static PointsRules + #1086, #3967
+  static PointsRules + #1087, #3967
+  static PointsRules + #1088, #3967
+  static PointsRules + #1089, #3967
+  static PointsRules + #1090, #3967
+  static PointsRules + #1091, #3967
+  static PointsRules + #1092, #3967
+  static PointsRules + #1093, #3967
+  static PointsRules + #1094, #3967
+  static PointsRules + #1095, #3967
+  static PointsRules + #1096, #3967
+  static PointsRules + #1097, #3967
+  static PointsRules + #1098, #3967
+  static PointsRules + #1099, #3967
+  static PointsRules + #1100, #3967
+  static PointsRules + #1101, #3967
+  static PointsRules + #1102, #3967
+  static PointsRules + #1103, #3967
+  static PointsRules + #1104, #3967
+  static PointsRules + #1105, #3967
+  static PointsRules + #1106, #3967
+  static PointsRules + #1107, #3967
+  static PointsRules + #1108, #3967
+  static PointsRules + #1109, #3967
+  static PointsRules + #1110, #3967
+  static PointsRules + #1111, #3967
+  static PointsRules + #1112, #3967
+  static PointsRules + #1113, #3967
+  static PointsRules + #1114, #3967
+  static PointsRules + #1115, #3967
+  static PointsRules + #1116, #3967
+  static PointsRules + #1117, #3967
+  static PointsRules + #1118, #3967
+  static PointsRules + #1119, #3967
+
+  ;Linha 28
+  static PointsRules + #1120, #3967
+  static PointsRules + #1121, #3967
+  static PointsRules + #1122, #3967
+  static PointsRules + #1123, #3967
+  static PointsRules + #1124, #3967
+  static PointsRules + #1125, #3967
+  static PointsRules + #1126, #3967
+  static PointsRules + #1127, #3967
+  static PointsRules + #1128, #3967
+  static PointsRules + #1129, #3967
+  static PointsRules + #1130, #3967
+  static PointsRules + #1131, #3967
+  static PointsRules + #1132, #3967
+  static PointsRules + #1133, #3967
+  static PointsRules + #1134, #3967
+  static PointsRules + #1135, #3967
+  static PointsRules + #1136, #3967
+  static PointsRules + #1137, #3967
+  static PointsRules + #1138, #3967
+  static PointsRules + #1139, #3967
+  static PointsRules + #1140, #3967
+  static PointsRules + #1141, #3967
+  static PointsRules + #1142, #3967
+  static PointsRules + #1143, #3967
+  static PointsRules + #1144, #3967
+  static PointsRules + #1145, #3967
+  static PointsRules + #1146, #3967
+  static PointsRules + #1147, #3967
+  static PointsRules + #1148, #3967
+  static PointsRules + #1149, #3967
+  static PointsRules + #1150, #3967
+  static PointsRules + #1151, #3967
+  static PointsRules + #1152, #3967
+  static PointsRules + #1153, #3967
+  static PointsRules + #1154, #3967
+  static PointsRules + #1155, #3967
+  static PointsRules + #1156, #3967
+  static PointsRules + #1157, #3967
+  static PointsRules + #1158, #3967
+  static PointsRules + #1159, #3967
+
+  ;Linha 29
+  static PointsRules + #1160, #3967
+  static PointsRules + #1161, #3967
+  static PointsRules + #1162, #3967
+  static PointsRules + #1163, #3967
+  static PointsRules + #1164, #3967
+  static PointsRules + #1165, #3967
+  static PointsRules + #1166, #3967
+  static PointsRules + #1167, #3967
+  static PointsRules + #1168, #3967
+  static PointsRules + #1169, #3967
+  static PointsRules + #1170, #3967
+  static PointsRules + #1171, #3967
+  static PointsRules + #1172, #3967
+  static PointsRules + #1173, #3967
+  static PointsRules + #1174, #3967
+  static PointsRules + #1175, #3967
+  static PointsRules + #1176, #3967
+  static PointsRules + #1177, #3967
+  static PointsRules + #1178, #3967
+  static PointsRules + #1179, #3967
+  static PointsRules + #1180, #3967
+  static PointsRules + #1181, #3967
+  static PointsRules + #1182, #3967
+  static PointsRules + #1183, #3967
+  static PointsRules + #1184, #3967
+  static PointsRules + #1185, #3967
+  static PointsRules + #1186, #3967
+  static PointsRules + #1187, #3967
+  static PointsRules + #1188, #3967
+  static PointsRules + #1189, #3967
+  static PointsRules + #1190, #3967
+  static PointsRules + #1191, #3967
+  static PointsRules + #1192, #3967
+  static PointsRules + #1193, #3967
+  static PointsRules + #1194, #3967
+  static PointsRules + #1195, #3967
+  static PointsRules + #1196, #3967
+  static PointsRules + #1197, #3967
+  static PointsRules + #1198, #3967
+  static PointsRules + #1199, #3967
+
+WinScreen : var #1200
+  ;Linha 0
+  static WinScreen + #0, #3967
+  static WinScreen + #1, #3967
+  static WinScreen + #2, #3967
+  static WinScreen + #3, #3967
+  static WinScreen + #4, #3967
+  static WinScreen + #5, #3967
+  static WinScreen + #6, #3967
+  static WinScreen + #7, #3967
+  static WinScreen + #8, #3967
+  static WinScreen + #9, #3967
+  static WinScreen + #10, #3967
+  static WinScreen + #11, #3967
+  static WinScreen + #12, #3967
+  static WinScreen + #13, #3967
+  static WinScreen + #14, #3967
+  static WinScreen + #15, #3967
+  static WinScreen + #16, #3967
+  static WinScreen + #17, #3967
+  static WinScreen + #18, #3967
+  static WinScreen + #19, #3967
+  static WinScreen + #20, #3967
+  static WinScreen + #21, #3967
+  static WinScreen + #22, #3967
+  static WinScreen + #23, #3967
+  static WinScreen + #24, #3967
+  static WinScreen + #25, #3967
+  static WinScreen + #26, #3967
+  static WinScreen + #27, #3967
+  static WinScreen + #28, #3967
+  static WinScreen + #29, #3967
+  static WinScreen + #30, #3967
+  static WinScreen + #31, #3967
+  static WinScreen + #32, #3967
+  static WinScreen + #33, #3967
+  static WinScreen + #34, #3967
+  static WinScreen + #35, #3967
+  static WinScreen + #36, #3967
+  static WinScreen + #37, #3967
+  static WinScreen + #38, #3967
+  static WinScreen + #39, #3967
+
+  ;Linha 1
+  static WinScreen + #40, #3967
+  static WinScreen + #41, #3967
+  static WinScreen + #42, #3967
+  static WinScreen + #43, #3967
+  static WinScreen + #44, #3967
+  static WinScreen + #45, #3967
+  static WinScreen + #46, #3967
+  static WinScreen + #47, #3967
+  static WinScreen + #48, #3967
+  static WinScreen + #49, #3967
+  static WinScreen + #50, #3967
+  static WinScreen + #51, #3967
+  static WinScreen + #52, #3967
+  static WinScreen + #53, #3967
+  static WinScreen + #54, #3967
+  static WinScreen + #55, #3967
+  static WinScreen + #56, #3967
+  static WinScreen + #57, #3967
+  static WinScreen + #58, #3967
+  static WinScreen + #59, #3967
+  static WinScreen + #60, #3967
+  static WinScreen + #61, #3967
+  static WinScreen + #62, #3967
+  static WinScreen + #63, #3967
+  static WinScreen + #64, #3967
+  static WinScreen + #65, #3967
+  static WinScreen + #66, #3967
+  static WinScreen + #67, #3967
+  static WinScreen + #68, #3967
+  static WinScreen + #69, #3967
+  static WinScreen + #70, #3967
+  static WinScreen + #71, #3967
+  static WinScreen + #72, #3967
+  static WinScreen + #73, #3967
+  static WinScreen + #74, #3967
+  static WinScreen + #75, #3967
+  static WinScreen + #76, #3967
+  static WinScreen + #77, #3967
+  static WinScreen + #78, #3967
+  static WinScreen + #79, #3967
+
+  ;Linha 2
+  static WinScreen + #80, #3967
+  static WinScreen + #81, #3967
+  static WinScreen + #82, #3967
+  static WinScreen + #83, #3967
+  static WinScreen + #84, #3967
+  static WinScreen + #85, #3967
+  static WinScreen + #86, #3967
+  static WinScreen + #87, #3967
+  static WinScreen + #88, #3967
+  static WinScreen + #89, #3967
+  static WinScreen + #90, #3967
+  static WinScreen + #91, #3967
+  static WinScreen + #92, #3967
+  static WinScreen + #93, #3967
+  static WinScreen + #94, #3967
+  static WinScreen + #95, #3967
+  static WinScreen + #96, #3967
+  static WinScreen + #97, #3967
+  static WinScreen + #98, #3967
+  static WinScreen + #99, #3967
+  static WinScreen + #100, #3967
+  static WinScreen + #101, #3967
+  static WinScreen + #102, #3967
+  static WinScreen + #103, #3967
+  static WinScreen + #104, #3967
+  static WinScreen + #105, #3967
+  static WinScreen + #106, #3967
+  static WinScreen + #107, #3967
+  static WinScreen + #108, #3967
+  static WinScreen + #109, #3967
+  static WinScreen + #110, #3967
+  static WinScreen + #111, #3967
+  static WinScreen + #112, #3967
+  static WinScreen + #113, #3967
+  static WinScreen + #114, #3967
+  static WinScreen + #115, #3967
+  static WinScreen + #116, #3967
+  static WinScreen + #117, #3967
+  static WinScreen + #118, #3967
+  static WinScreen + #119, #3967
+
+  ;Linha 3
+  static WinScreen + #120, #3967
+  static WinScreen + #121, #3967
+  static WinScreen + #122, #3967
+  static WinScreen + #123, #3967
+  static WinScreen + #124, #3967
+  static WinScreen + #125, #3967
+  static WinScreen + #126, #93
+  static WinScreen + #127, #3967
+  static WinScreen + #128, #93
+  static WinScreen + #129, #3967
+  static WinScreen + #130, #3967
+  static WinScreen + #131, #93
+  static WinScreen + #132, #93
+  static WinScreen + #133, #3967
+  static WinScreen + #134, #3967
+  static WinScreen + #135, #3967
+  static WinScreen + #136, #93
+  static WinScreen + #137, #93
+  static WinScreen + #138, #93
+  static WinScreen + #139, #3967
+  static WinScreen + #140, #3967
+  static WinScreen + #141, #93
+  static WinScreen + #142, #93
+  static WinScreen + #143, #93
+  static WinScreen + #144, #3967
+  static WinScreen + #145, #3967
+  static WinScreen + #146, #3967
+  static WinScreen + #147, #3967
+  static WinScreen + #148, #3967
+  static WinScreen + #149, #3967
+  static WinScreen + #150, #3967
+  static WinScreen + #151, #3967
+  static WinScreen + #152, #3967
+  static WinScreen + #153, #3967
+  static WinScreen + #154, #3967
+  static WinScreen + #155, #3967
+  static WinScreen + #156, #3967
+  static WinScreen + #157, #3967
+  static WinScreen + #158, #3967
+  static WinScreen + #159, #3967
+
+  ;Linha 4
+  static WinScreen + #160, #3967
+  static WinScreen + #161, #3967
+  static WinScreen + #162, #3967
+  static WinScreen + #163, #3967
+  static WinScreen + #164, #3967
+  static WinScreen + #165, #3967
+  static WinScreen + #166, #93
+  static WinScreen + #167, #3967
+  static WinScreen + #168, #93
+  static WinScreen + #169, #3967
+  static WinScreen + #170, #93
+  static WinScreen + #171, #3967
+  static WinScreen + #172, #3967
+  static WinScreen + #173, #93
+  static WinScreen + #174, #3967
+  static WinScreen + #175, #93
+  static WinScreen + #176, #3967
+  static WinScreen + #177, #3967
+  static WinScreen + #178, #3967
+  static WinScreen + #179, #3967
+  static WinScreen + #180, #93
+  static WinScreen + #181, #3967
+  static WinScreen + #182, #3967
+  static WinScreen + #183, #3967
+  static WinScreen + #184, #3967
+  static WinScreen + #185, #3967
+  static WinScreen + #186, #3967
+  static WinScreen + #187, #3967
+  static WinScreen + #188, #3967
+  static WinScreen + #189, #3967
+  static WinScreen + #190, #3967
+  static WinScreen + #191, #3967
+  static WinScreen + #192, #3967
+  static WinScreen + #193, #3967
+  static WinScreen + #194, #3967
+  static WinScreen + #195, #3967
+  static WinScreen + #196, #3967
+  static WinScreen + #197, #3967
+  static WinScreen + #198, #3967
+  static WinScreen + #199, #3967
+
+  ;Linha 5
+  static WinScreen + #200, #3967
+  static WinScreen + #201, #3967
+  static WinScreen + #202, #3967
+  static WinScreen + #203, #3967
+  static WinScreen + #204, #3967
+  static WinScreen + #205, #3967
+  static WinScreen + #206, #93
+  static WinScreen + #207, #3967
+  static WinScreen + #208, #93
+  static WinScreen + #209, #3967
+  static WinScreen + #210, #93
+  static WinScreen + #211, #3967
+  static WinScreen + #212, #3967
+  static WinScreen + #213, #93
+  static WinScreen + #214, #3967
+  static WinScreen + #215, #93
+  static WinScreen + #216, #3967
+  static WinScreen + #217, #3967
+  static WinScreen + #218, #3967
+  static WinScreen + #219, #3967
+  static WinScreen + #220, #93
+  static WinScreen + #221, #93
+  static WinScreen + #222, #93
+  static WinScreen + #223, #3967
+  static WinScreen + #224, #3967
+  static WinScreen + #225, #3967
+  static WinScreen + #226, #3967
+  static WinScreen + #227, #3967
+  static WinScreen + #228, #3967
+  static WinScreen + #229, #3967
+  static WinScreen + #230, #3967
+  static WinScreen + #231, #3967
+  static WinScreen + #232, #3967
+  static WinScreen + #233, #3967
+  static WinScreen + #234, #3967
+  static WinScreen + #235, #3967
+  static WinScreen + #236, #3967
+  static WinScreen + #237, #3967
+  static WinScreen + #238, #3967
+  static WinScreen + #239, #3967
+
+  ;Linha 6
+  static WinScreen + #240, #3967
+  static WinScreen + #241, #3967
+  static WinScreen + #242, #3967
+  static WinScreen + #243, #3967
+  static WinScreen + #244, #3967
+  static WinScreen + #245, #3967
+  static WinScreen + #246, #93
+  static WinScreen + #247, #3967
+  static WinScreen + #248, #93
+  static WinScreen + #249, #3967
+  static WinScreen + #250, #93
+  static WinScreen + #251, #3967
+  static WinScreen + #252, #3967
+  static WinScreen + #253, #93
+  static WinScreen + #254, #3967
+  static WinScreen + #255, #93
+  static WinScreen + #256, #3967
+  static WinScreen + #257, #3967
+  static WinScreen + #258, #3967
+  static WinScreen + #259, #3967
+  static WinScreen + #260, #93
+  static WinScreen + #261, #3967
+  static WinScreen + #262, #3967
+  static WinScreen + #263, #3967
+  static WinScreen + #264, #3967
+  static WinScreen + #265, #3967
+  static WinScreen + #266, #3967
+  static WinScreen + #267, #3967
+  static WinScreen + #268, #3967
+  static WinScreen + #269, #3967
+  static WinScreen + #270, #3967
+  static WinScreen + #271, #3967
+  static WinScreen + #272, #3967
+  static WinScreen + #273, #3967
+  static WinScreen + #274, #3967
+  static WinScreen + #275, #3967
+  static WinScreen + #276, #3967
+  static WinScreen + #277, #3967
+  static WinScreen + #278, #3967
+  static WinScreen + #279, #3967
+
+  ;Linha 7
+  static WinScreen + #280, #3967
+  static WinScreen + #281, #3967
+  static WinScreen + #282, #3967
+  static WinScreen + #283, #3967
+  static WinScreen + #284, #3967
+  static WinScreen + #285, #3967
+  static WinScreen + #286, #3967
+  static WinScreen + #287, #93
+  static WinScreen + #288, #3967
+  static WinScreen + #289, #3967
+  static WinScreen + #290, #3967
+  static WinScreen + #291, #93
+  static WinScreen + #292, #93
+  static WinScreen + #293, #3967
+  static WinScreen + #294, #3967
+  static WinScreen + #295, #3967
+  static WinScreen + #296, #93
+  static WinScreen + #297, #93
+  static WinScreen + #298, #93
+  static WinScreen + #299, #3967
+  static WinScreen + #300, #3967
+  static WinScreen + #301, #93
+  static WinScreen + #302, #93
+  static WinScreen + #303, #93
+  static WinScreen + #304, #3967
+  static WinScreen + #305, #3967
+  static WinScreen + #306, #3967
+  static WinScreen + #307, #3967
+  static WinScreen + #308, #3967
+  static WinScreen + #309, #3967
+  static WinScreen + #310, #3967
+  static WinScreen + #311, #3967
+  static WinScreen + #312, #3967
+  static WinScreen + #313, #3967
+  static WinScreen + #314, #3967
+  static WinScreen + #315, #3967
+  static WinScreen + #316, #3967
+  static WinScreen + #317, #3967
+  static WinScreen + #318, #3967
+  static WinScreen + #319, #3967
+
+  ;Linha 8
+  static WinScreen + #320, #3967
+  static WinScreen + #321, #3967
+  static WinScreen + #322, #3967
+  static WinScreen + #323, #3967
+  static WinScreen + #324, #3967
+  static WinScreen + #325, #3967
+  static WinScreen + #326, #3967
+  static WinScreen + #327, #3967
+  static WinScreen + #328, #3967
+  static WinScreen + #329, #3967
+  static WinScreen + #330, #3967
+  static WinScreen + #331, #3967
+  static WinScreen + #332, #3967
+  static WinScreen + #333, #3967
+  static WinScreen + #334, #3967
+  static WinScreen + #335, #3967
+  static WinScreen + #336, #3967
+  static WinScreen + #337, #3967
+  static WinScreen + #338, #3967
+  static WinScreen + #339, #3967
+  static WinScreen + #340, #3967
+  static WinScreen + #341, #3967
+  static WinScreen + #342, #3967
+  static WinScreen + #343, #3967
+  static WinScreen + #344, #3967
+  static WinScreen + #345, #3967
+  static WinScreen + #346, #3967
+  static WinScreen + #347, #3967
+  static WinScreen + #348, #3967
+  static WinScreen + #349, #3967
+  static WinScreen + #350, #3967
+  static WinScreen + #351, #3967
+  static WinScreen + #352, #3967
+  static WinScreen + #353, #3967
+  static WinScreen + #354, #3967
+  static WinScreen + #355, #3967
+  static WinScreen + #356, #3967
+  static WinScreen + #357, #3967
+  static WinScreen + #358, #3967
+  static WinScreen + #359, #3967
+
+  ;Linha 9
+  static WinScreen + #360, #3967
+  static WinScreen + #361, #3967
+  static WinScreen + #362, #3967
+  static WinScreen + #363, #3967
+  static WinScreen + #364, #3967
+  static WinScreen + #365, #3967
+  static WinScreen + #366, #3967
+  static WinScreen + #367, #3967
+  static WinScreen + #368, #3967
+  static WinScreen + #369, #3967
+  static WinScreen + #370, #3967
+  static WinScreen + #371, #3967
+  static WinScreen + #372, #3967
+  static WinScreen + #373, #3967
+  static WinScreen + #374, #3967
+  static WinScreen + #375, #3967
+  static WinScreen + #376, #3967
+  static WinScreen + #377, #3967
+  static WinScreen + #378, #3967
+  static WinScreen + #379, #3967
+  static WinScreen + #380, #3967
+  static WinScreen + #381, #3967
+  static WinScreen + #382, #3967
+  static WinScreen + #383, #3967
+  static WinScreen + #384, #3967
+  static WinScreen + #385, #3967
+  static WinScreen + #386, #3967
+  static WinScreen + #387, #3967
+  static WinScreen + #388, #3967
+  static WinScreen + #389, #3967
+  static WinScreen + #390, #3967
+  static WinScreen + #391, #3967
+  static WinScreen + #392, #3967
+  static WinScreen + #393, #3967
+  static WinScreen + #394, #3967
+  static WinScreen + #395, #3967
+  static WinScreen + #396, #3967
+  static WinScreen + #397, #3967
+  static WinScreen + #398, #3967
+  static WinScreen + #399, #3967
+
+  ;Linha 10
+  static WinScreen + #400, #3967
+  static WinScreen + #401, #3967
+  static WinScreen + #402, #3967
+  static WinScreen + #403, #3967
+  static WinScreen + #404, #3967
+  static WinScreen + #405, #3967
+  static WinScreen + #406, #3967
+  static WinScreen + #407, #3967
+  static WinScreen + #408, #3967
+  static WinScreen + #409, #3967
+  static WinScreen + #410, #3967
+  static WinScreen + #411, #3967
+  static WinScreen + #412, #3967
+  static WinScreen + #413, #3967
+  static WinScreen + #414, #3967
+  static WinScreen + #415, #3967
+  static WinScreen + #416, #3967
+  static WinScreen + #417, #3967
+  static WinScreen + #418, #3967
+  static WinScreen + #419, #3967
+  static WinScreen + #420, #3967
+  static WinScreen + #421, #3967
+  static WinScreen + #422, #3967
+  static WinScreen + #423, #3967
+  static WinScreen + #424, #3967
+  static WinScreen + #425, #3967
+  static WinScreen + #426, #3967
+  static WinScreen + #427, #3967
+  static WinScreen + #428, #3967
+  static WinScreen + #429, #3967
+  static WinScreen + #430, #3967
+  static WinScreen + #431, #3967
+  static WinScreen + #432, #3967
+  static WinScreen + #433, #3967
+  static WinScreen + #434, #3967
+  static WinScreen + #435, #3967
+  static WinScreen + #436, #3967
+  static WinScreen + #437, #3967
+  static WinScreen + #438, #3967
+  static WinScreen + #439, #3967
+
+  ;Linha 11
+  static WinScreen + #440, #3967
+  static WinScreen + #441, #3967
+  static WinScreen + #442, #3967
+  static WinScreen + #443, #3967
+  static WinScreen + #444, #3967
+  static WinScreen + #445, #3967
+  static WinScreen + #446, #93
+  static WinScreen + #447, #3967
+  static WinScreen + #448, #93
+  static WinScreen + #449, #3967
+  static WinScreen + #450, #3967
+  static WinScreen + #451, #2397
+  static WinScreen + #452, #2397
+  static WinScreen + #453, #2397
+  static WinScreen + #454, #3967
+  static WinScreen + #455, #93
+  static WinScreen + #456, #3967
+  static WinScreen + #457, #3967
+  static WinScreen + #458, #3967
+  static WinScreen + #459, #93
+  static WinScreen + #460, #3967
+  static WinScreen + #461, #3967
+  static WinScreen + #462, #3165
+  static WinScreen + #463, #3165
+  static WinScreen + #464, #3165
+  static WinScreen + #465, #3967
+  static WinScreen + #466, #3967
+  static WinScreen + #467, #93
+  static WinScreen + #468, #93
+  static WinScreen + #469, #93
+  static WinScreen + #470, #3967
+  static WinScreen + #471, #2397
+  static WinScreen + #472, #3967
+  static WinScreen + #473, #3967
+  static WinScreen + #474, #2397
+  static WinScreen + #475, #3967
+  static WinScreen + #476, #3967
+  static WinScreen + #477, #3967
+  static WinScreen + #478, #3967
+  static WinScreen + #479, #3967
+
+  ;Linha 12
+  static WinScreen + #480, #3967
+  static WinScreen + #481, #3967
+  static WinScreen + #482, #3967
+  static WinScreen + #483, #3967
+  static WinScreen + #484, #3967
+  static WinScreen + #485, #3967
+  static WinScreen + #486, #93
+  static WinScreen + #487, #3967
+  static WinScreen + #488, #93
+  static WinScreen + #489, #3967
+  static WinScreen + #490, #2397
+  static WinScreen + #491, #3967
+  static WinScreen + #492, #3967
+  static WinScreen + #493, #3967
+  static WinScreen + #494, #3967
+  static WinScreen + #495, #93
+  static WinScreen + #496, #93
+  static WinScreen + #497, #3967
+  static WinScreen + #498, #3967
+  static WinScreen + #499, #93
+  static WinScreen + #500, #3967
+  static WinScreen + #501, #3165
+  static WinScreen + #502, #3967
+  static WinScreen + #503, #3967
+  static WinScreen + #504, #3967
+  static WinScreen + #505, #3967
+  static WinScreen + #506, #93
+  static WinScreen + #507, #3967
+  static WinScreen + #508, #3967
+  static WinScreen + #509, #3967
+  static WinScreen + #510, #3967
+  static WinScreen + #511, #2397
+  static WinScreen + #512, #3967
+  static WinScreen + #513, #3967
+  static WinScreen + #514, #2397
+  static WinScreen + #515, #3967
+  static WinScreen + #516, #3967
+  static WinScreen + #517, #3967
+  static WinScreen + #518, #3967
+  static WinScreen + #519, #3967
+
+  ;Linha 13
+  static WinScreen + #520, #3967
+  static WinScreen + #521, #3967
+  static WinScreen + #522, #3967
+  static WinScreen + #523, #3967
+  static WinScreen + #524, #3967
+  static WinScreen + #525, #3967
+  static WinScreen + #526, #93
+  static WinScreen + #527, #3967
+  static WinScreen + #528, #93
+  static WinScreen + #529, #3967
+  static WinScreen + #530, #2397
+  static WinScreen + #531, #2397
+  static WinScreen + #532, #2397
+  static WinScreen + #533, #3967
+  static WinScreen + #534, #3967
+  static WinScreen + #535, #93
+  static WinScreen + #536, #3967
+  static WinScreen + #537, #93
+  static WinScreen + #538, #3967
+  static WinScreen + #539, #93
+  static WinScreen + #540, #3967
+  static WinScreen + #541, #3165
+  static WinScreen + #542, #3967
+  static WinScreen + #543, #3967
+  static WinScreen + #544, #3967
+  static WinScreen + #545, #3967
+  static WinScreen + #546, #93
+  static WinScreen + #547, #93
+  static WinScreen + #548, #93
+  static WinScreen + #549, #3967
+  static WinScreen + #550, #3967
+  static WinScreen + #551, #2397
+  static WinScreen + #552, #3967
+  static WinScreen + #553, #3967
+  static WinScreen + #554, #2397
+  static WinScreen + #555, #3967
+  static WinScreen + #556, #3967
+  static WinScreen + #557, #3967
+  static WinScreen + #558, #3967
+  static WinScreen + #559, #3967
+
+  ;Linha 14
+  static WinScreen + #560, #3967
+  static WinScreen + #561, #3967
+  static WinScreen + #562, #3967
+  static WinScreen + #563, #3967
+  static WinScreen + #564, #3967
+  static WinScreen + #565, #3967
+  static WinScreen + #566, #93
+  static WinScreen + #567, #3967
+  static WinScreen + #568, #93
+  static WinScreen + #569, #3967
+  static WinScreen + #570, #2397
+  static WinScreen + #571, #3967
+  static WinScreen + #572, #3967
+  static WinScreen + #573, #3967
+  static WinScreen + #574, #3967
+  static WinScreen + #575, #93
+  static WinScreen + #576, #3967
+  static WinScreen + #577, #3967
+  static WinScreen + #578, #93
+  static WinScreen + #579, #93
+  static WinScreen + #580, #3967
+  static WinScreen + #581, #3165
+  static WinScreen + #582, #3967
+  static WinScreen + #583, #3967
+  static WinScreen + #584, #3967
+  static WinScreen + #585, #3967
+  static WinScreen + #586, #93
+  static WinScreen + #587, #3967
+  static WinScreen + #588, #3967
+  static WinScreen + #589, #3967
+  static WinScreen + #590, #3967
+  static WinScreen + #591, #2397
+  static WinScreen + #592, #3967
+  static WinScreen + #593, #3967
+  static WinScreen + #594, #2397
+  static WinScreen + #595, #3967
+  static WinScreen + #596, #3967
+  static WinScreen + #597, #3967
+  static WinScreen + #598, #3967
+  static WinScreen + #599, #3967
+
+  ;Linha 15
+  static WinScreen + #600, #3967
+  static WinScreen + #601, #3967
+  static WinScreen + #602, #3967
+  static WinScreen + #603, #3967
+  static WinScreen + #604, #3967
+  static WinScreen + #605, #3967
+  static WinScreen + #606, #3967
+  static WinScreen + #607, #93
+  static WinScreen + #608, #3967
+  static WinScreen + #609, #3967
+  static WinScreen + #610, #3967
+  static WinScreen + #611, #2397
+  static WinScreen + #612, #2397
+  static WinScreen + #613, #2397
+  static WinScreen + #614, #3967
+  static WinScreen + #615, #93
+  static WinScreen + #616, #3967
+  static WinScreen + #617, #3967
+  static WinScreen + #618, #3967
+  static WinScreen + #619, #93
+  static WinScreen + #620, #3967
+  static WinScreen + #621, #3967
+  static WinScreen + #622, #3165
+  static WinScreen + #623, #3165
+  static WinScreen + #624, #3165
+  static WinScreen + #625, #3967
+  static WinScreen + #626, #3967
+  static WinScreen + #627, #93
+  static WinScreen + #628, #93
+  static WinScreen + #629, #93
+  static WinScreen + #630, #3967
+  static WinScreen + #631, #3967
+  static WinScreen + #632, #2397
+  static WinScreen + #633, #2397
+  static WinScreen + #634, #3967
+  static WinScreen + #635, #3967
+  static WinScreen + #636, #3967
+  static WinScreen + #637, #3967
+  static WinScreen + #638, #3967
+  static WinScreen + #639, #3967
+
+  ;Linha 16
+  static WinScreen + #640, #3967
+  static WinScreen + #641, #3967
+  static WinScreen + #642, #3967
+  static WinScreen + #643, #3967
+  static WinScreen + #644, #3967
+  static WinScreen + #645, #3967
+  static WinScreen + #646, #3967
+  static WinScreen + #647, #3967
+  static WinScreen + #648, #3967
+  static WinScreen + #649, #3967
+  static WinScreen + #650, #3967
+  static WinScreen + #651, #3967
+  static WinScreen + #652, #3967
+  static WinScreen + #653, #3967
+  static WinScreen + #654, #3967
+  static WinScreen + #655, #3967
+  static WinScreen + #656, #3967
+  static WinScreen + #657, #3967
+  static WinScreen + #658, #3967
+  static WinScreen + #659, #3967
+  static WinScreen + #660, #3967
+  static WinScreen + #661, #3967
+  static WinScreen + #662, #3967
+  static WinScreen + #663, #3967
+  static WinScreen + #664, #3967
+  static WinScreen + #665, #3967
+  static WinScreen + #666, #3967
+  static WinScreen + #667, #3967
+  static WinScreen + #668, #3967
+  static WinScreen + #669, #3967
+  static WinScreen + #670, #3967
+  static WinScreen + #671, #3967
+  static WinScreen + #672, #3967
+  static WinScreen + #673, #3967
+  static WinScreen + #674, #3967
+  static WinScreen + #675, #3967
+  static WinScreen + #676, #3967
+  static WinScreen + #677, #3967
+  static WinScreen + #678, #3967
+  static WinScreen + #679, #3967
+
+  ;Linha 17
+  static WinScreen + #680, #3967
+  static WinScreen + #681, #3967
+  static WinScreen + #682, #3967
+  static WinScreen + #683, #3967
+  static WinScreen + #684, #3967
+  static WinScreen + #685, #3967
+  static WinScreen + #686, #3967
+  static WinScreen + #687, #3967
+  static WinScreen + #688, #3967
+  static WinScreen + #689, #3967
+  static WinScreen + #690, #3967
+  static WinScreen + #691, #3967
+  static WinScreen + #692, #3967
+  static WinScreen + #693, #3967
+  static WinScreen + #694, #3967
+  static WinScreen + #695, #3967
+  static WinScreen + #696, #3967
+  static WinScreen + #697, #3967
+  static WinScreen + #698, #3967
+  static WinScreen + #699, #3967
+  static WinScreen + #700, #3967
+  static WinScreen + #701, #3967
+  static WinScreen + #702, #3967
+  static WinScreen + #703, #3967
+  static WinScreen + #704, #3967
+  static WinScreen + #705, #3967
+  static WinScreen + #706, #3967
+  static WinScreen + #707, #3967
+  static WinScreen + #708, #3967
+  static WinScreen + #709, #3967
+  static WinScreen + #710, #3967
+  static WinScreen + #711, #3967
+  static WinScreen + #712, #3967
+  static WinScreen + #713, #3967
+  static WinScreen + #714, #3967
+  static WinScreen + #715, #3967
+  static WinScreen + #716, #3967
+  static WinScreen + #717, #3967
+  static WinScreen + #718, #3967
+  static WinScreen + #719, #3967
+
+  ;Linha 18
+  static WinScreen + #720, #3967
+  static WinScreen + #721, #3967
+  static WinScreen + #722, #3967
+  static WinScreen + #723, #3967
+  static WinScreen + #724, #3967
+  static WinScreen + #725, #3967
+  static WinScreen + #726, #3967
+  static WinScreen + #727, #3967
+  static WinScreen + #728, #3967
+  static WinScreen + #729, #3967
+  static WinScreen + #730, #3967
+  static WinScreen + #731, #3967
+  static WinScreen + #732, #3967
+  static WinScreen + #733, #3967
+  static WinScreen + #734, #3967
+  static WinScreen + #735, #3967
+  static WinScreen + #736, #3967
+  static WinScreen + #737, #3967
+  static WinScreen + #738, #3967
+  static WinScreen + #739, #3967
+  static WinScreen + #740, #3967
+  static WinScreen + #741, #3967
+  static WinScreen + #742, #3967
+  static WinScreen + #743, #3967
+  static WinScreen + #744, #3967
+  static WinScreen + #745, #3967
+  static WinScreen + #746, #3967
+  static WinScreen + #747, #3967
+  static WinScreen + #748, #3967
+  static WinScreen + #749, #3967
+  static WinScreen + #750, #3967
+  static WinScreen + #751, #3967
+  static WinScreen + #752, #3967
+  static WinScreen + #753, #3967
+  static WinScreen + #754, #3967
+  static WinScreen + #755, #3967
+  static WinScreen + #756, #3967
+  static WinScreen + #757, #3967
+  static WinScreen + #758, #3967
+  static WinScreen + #759, #3967
+
+  ;Linha 19
+  static WinScreen + #760, #3967
+  static WinScreen + #761, #3967
+  static WinScreen + #762, #3967
+  static WinScreen + #763, #3967
+  static WinScreen + #764, #3967
+  static WinScreen + #765, #3967
+  static WinScreen + #766, #83
+  static WinScreen + #767, #67
+  static WinScreen + #768, #79
+  static WinScreen + #769, #82
+  static WinScreen + #770, #69
+  static WinScreen + #771, #3967
+  static WinScreen + #772, #3967
+  static WinScreen + #773, #3967
+  static WinScreen + #774, #3967
+  static WinScreen + #775, #3967
+  static WinScreen + #776, #3967
+  static WinScreen + #777, #3967
+  static WinScreen + #778, #3967
+  static WinScreen + #779, #3967
+  static WinScreen + #780, #3967
+  static WinScreen + #781, #3967
+  static WinScreen + #782, #3967
+  static WinScreen + #783, #3967
+  static WinScreen + #784, #3967
+  static WinScreen + #785, #3967
+  static WinScreen + #786, #3967
+  static WinScreen + #787, #3967
+  static WinScreen + #788, #3967
+  static WinScreen + #789, #3967
+  static WinScreen + #790, #3967
+  static WinScreen + #791, #3967
+  static WinScreen + #792, #3967
+  static WinScreen + #793, #3967
+  static WinScreen + #794, #3967
+  static WinScreen + #795, #3967
+  static WinScreen + #796, #3967
+  static WinScreen + #797, #3967
+  static WinScreen + #798, #3967
+  static WinScreen + #799, #3967
+
+  ;Linha 20
+  static WinScreen + #800, #3967
+  static WinScreen + #801, #3967
+  static WinScreen + #802, #3967
+  static WinScreen + #803, #3967
+  static WinScreen + #804, #3967
+  static WinScreen + #805, #3967
+  static WinScreen + #806, #3967
+  static WinScreen + #807, #3967
+  static WinScreen + #808, #3967
+  static WinScreen + #809, #3967
+  static WinScreen + #810, #3967
+  static WinScreen + #811, #3967
+  static WinScreen + #812, #3967
+  static WinScreen + #813, #3967
+  static WinScreen + #814, #3967
+  static WinScreen + #815, #3967
+  static WinScreen + #816, #3967
+  static WinScreen + #817, #3967
+  static WinScreen + #818, #3967
+  static WinScreen + #819, #3967
+  static WinScreen + #820, #3967
+  static WinScreen + #821, #3967
+  static WinScreen + #822, #3967
+  static WinScreen + #823, #3967
+  static WinScreen + #824, #3967
+  static WinScreen + #825, #3967
+  static WinScreen + #826, #3967
+  static WinScreen + #827, #3967
+  static WinScreen + #828, #3967
+  static WinScreen + #829, #3967
+  static WinScreen + #830, #3967
+  static WinScreen + #831, #3967
+  static WinScreen + #832, #3967
+  static WinScreen + #833, #3967
+  static WinScreen + #834, #3967
+  static WinScreen + #835, #3967
+  static WinScreen + #836, #3967
+  static WinScreen + #837, #3967
+  static WinScreen + #838, #3967
+  static WinScreen + #839, #3967
+
+  ;Linha 21
+  static WinScreen + #840, #3967
+  static WinScreen + #841, #3967
+  static WinScreen + #842, #3967
+  static WinScreen + #843, #3967
+  static WinScreen + #844, #3967
+  static WinScreen + #845, #3967
+  static WinScreen + #846, #3967
+  static WinScreen + #847, #3967
+  static WinScreen + #848, #3967
+  static WinScreen + #849, #3967
+  static WinScreen + #850, #3967
+  static WinScreen + #851, #3967
+  static WinScreen + #852, #3967
+  static WinScreen + #853, #3967
+  static WinScreen + #854, #3967
+  static WinScreen + #855, #3967
+  static WinScreen + #856, #3967
+  static WinScreen + #857, #3967
+  static WinScreen + #858, #3967
+  static WinScreen + #859, #3967
+  static WinScreen + #860, #3967
+  static WinScreen + #861, #3967
+  static WinScreen + #862, #3967
+  static WinScreen + #863, #3967
+  static WinScreen + #864, #3967
+  static WinScreen + #865, #3967
+  static WinScreen + #866, #3967
+  static WinScreen + #867, #3967
+  static WinScreen + #868, #3967
+  static WinScreen + #869, #3967
+  static WinScreen + #870, #3967
+  static WinScreen + #871, #3967
+  static WinScreen + #872, #3967
+  static WinScreen + #873, #3967
+  static WinScreen + #874, #3967
+  static WinScreen + #875, #3967
+  static WinScreen + #876, #3967
+  static WinScreen + #877, #3967
+  static WinScreen + #878, #3967
+  static WinScreen + #879, #3967
+
+  ;Linha 22
+  static WinScreen + #880, #3967
+  static WinScreen + #881, #3967
+  static WinScreen + #882, #3967
+  static WinScreen + #883, #3967
+  static WinScreen + #884, #3967
+  static WinScreen + #885, #3967
+  static WinScreen + #886, #80
+  static WinScreen + #887, #82
+  static WinScreen + #888, #69
+  static WinScreen + #889, #83
+  static WinScreen + #890, #83
+  static WinScreen + #891, #3967
+  static WinScreen + #892, #88
+  static WinScreen + #893, #3967
+  static WinScreen + #894, #84
+  static WinScreen + #895, #79
+  static WinScreen + #896, #3967
+  static WinScreen + #897, #80
+  static WinScreen + #898, #76
+  static WinScreen + #899, #65
+  static WinScreen + #900, #89
+  static WinScreen + #901, #3967
+  static WinScreen + #902, #65
+  static WinScreen + #903, #71
+  static WinScreen + #904, #65
+  static WinScreen + #905, #73
+  static WinScreen + #906, #78
+  static WinScreen + #907, #3967
+  static WinScreen + #908, #3967
+  static WinScreen + #909, #3967
+  static WinScreen + #910, #3967
+  static WinScreen + #911, #3967
+  static WinScreen + #912, #3967
+  static WinScreen + #913, #3967
+  static WinScreen + #914, #3967
+  static WinScreen + #915, #3967
+  static WinScreen + #916, #3967
+  static WinScreen + #917, #3967
+  static WinScreen + #918, #3967
+  static WinScreen + #919, #3967
+
+  ;Linha 23
+  static WinScreen + #920, #3967
+  static WinScreen + #921, #3967
+  static WinScreen + #922, #3967
+  static WinScreen + #923, #3967
+  static WinScreen + #924, #3967
+  static WinScreen + #925, #3967
+  static WinScreen + #926, #3967
+  static WinScreen + #927, #3967
+  static WinScreen + #928, #3967
+  static WinScreen + #929, #3967
+  static WinScreen + #930, #3967
+  static WinScreen + #931, #3967
+  static WinScreen + #932, #3967
+  static WinScreen + #933, #3967
+  static WinScreen + #934, #3967
+  static WinScreen + #935, #3967
+  static WinScreen + #936, #3967
+  static WinScreen + #937, #3967
+  static WinScreen + #938, #3967
+  static WinScreen + #939, #3967
+  static WinScreen + #940, #3967
+  static WinScreen + #941, #3967
+  static WinScreen + #942, #3967
+  static WinScreen + #943, #3967
+  static WinScreen + #944, #3967
+  static WinScreen + #945, #3967
+  static WinScreen + #946, #3967
+  static WinScreen + #947, #3967
+  static WinScreen + #948, #3967
+  static WinScreen + #949, #3967
+  static WinScreen + #950, #3967
+  static WinScreen + #951, #3967
+  static WinScreen + #952, #3967
+  static WinScreen + #953, #3967
+  static WinScreen + #954, #3967
+  static WinScreen + #955, #3967
+  static WinScreen + #956, #3967
+  static WinScreen + #957, #3967
+  static WinScreen + #958, #3967
+  static WinScreen + #959, #3967
+
+  ;Linha 24
+  static WinScreen + #960, #3967
+  static WinScreen + #961, #3967
+  static WinScreen + #962, #3967
+  static WinScreen + #963, #3967
+  static WinScreen + #964, #3967
+  static WinScreen + #965, #3967
+  static WinScreen + #966, #80
+  static WinScreen + #967, #82
+  static WinScreen + #968, #69
+  static WinScreen + #969, #83
+  static WinScreen + #970, #83
+  static WinScreen + #971, #3967
+  static WinScreen + #972, #69
+  static WinScreen + #973, #78
+  static WinScreen + #974, #84
+  static WinScreen + #975, #69
+  static WinScreen + #976, #82
+  static WinScreen + #977, #3967
+  static WinScreen + #978, #84
+  static WinScreen + #979, #79
+  static WinScreen + #980, #3967
+  static WinScreen + #981, #81
+  static WinScreen + #982, #85
+  static WinScreen + #983, #73
+  static WinScreen + #984, #84
+  static WinScreen + #985, #3967
+  static WinScreen + #986, #71
+  static WinScreen + #987, #65
+  static WinScreen + #988, #77
+  static WinScreen + #989, #69
+  static WinScreen + #990, #3967
+  static WinScreen + #991, #3967
+  static WinScreen + #992, #3967
+  static WinScreen + #993, #3967
+  static WinScreen + #994, #3967
+  static WinScreen + #995, #3967
+  static WinScreen + #996, #3967
+  static WinScreen + #997, #3967
+  static WinScreen + #998, #3967
+  static WinScreen + #999, #3967
+
+  ;Linha 25
+  static WinScreen + #1000, #3967
+  static WinScreen + #1001, #3967
+  static WinScreen + #1002, #3967
+  static WinScreen + #1003, #3967
+  static WinScreen + #1004, #3967
+  static WinScreen + #1005, #3967
+  static WinScreen + #1006, #3967
+  static WinScreen + #1007, #3967
+  static WinScreen + #1008, #3967
+  static WinScreen + #1009, #3967
+  static WinScreen + #1010, #3967
+  static WinScreen + #1011, #3967
+  static WinScreen + #1012, #3967
+  static WinScreen + #1013, #3967
+  static WinScreen + #1014, #3967
+  static WinScreen + #1015, #3967
+  static WinScreen + #1016, #3967
+  static WinScreen + #1017, #3967
+  static WinScreen + #1018, #3967
+  static WinScreen + #1019, #3967
+  static WinScreen + #1020, #3967
+  static WinScreen + #1021, #3967
+  static WinScreen + #1022, #3967
+  static WinScreen + #1023, #3967
+  static WinScreen + #1024, #3967
+  static WinScreen + #1025, #3967
+  static WinScreen + #1026, #3967
+  static WinScreen + #1027, #3967
+  static WinScreen + #1028, #3967
+  static WinScreen + #1029, #3967
+  static WinScreen + #1030, #3967
+  static WinScreen + #1031, #3967
+  static WinScreen + #1032, #3967
+  static WinScreen + #1033, #3967
+  static WinScreen + #1034, #3967
+  static WinScreen + #1035, #3967
+  static WinScreen + #1036, #3967
+  static WinScreen + #1037, #3967
+  static WinScreen + #1038, #3967
+  static WinScreen + #1039, #3967
+
+  ;Linha 26
+  static WinScreen + #1040, #3967
+  static WinScreen + #1041, #3967
+  static WinScreen + #1042, #3967
+  static WinScreen + #1043, #3967
+  static WinScreen + #1044, #3967
+  static WinScreen + #1045, #3967
+  static WinScreen + #1046, #3967
+  static WinScreen + #1047, #3967
+  static WinScreen + #1048, #3967
+  static WinScreen + #1049, #3967
+  static WinScreen + #1050, #3967
+  static WinScreen + #1051, #3967
+  static WinScreen + #1052, #3967
+  static WinScreen + #1053, #3967
+  static WinScreen + #1054, #3967
+  static WinScreen + #1055, #3967
+  static WinScreen + #1056, #3967
+  static WinScreen + #1057, #3967
+  static WinScreen + #1058, #3967
+  static WinScreen + #1059, #3967
+  static WinScreen + #1060, #3967
+  static WinScreen + #1061, #3967
+  static WinScreen + #1062, #3967
+  static WinScreen + #1063, #3967
+  static WinScreen + #1064, #3967
+  static WinScreen + #1065, #3967
+  static WinScreen + #1066, #3967
+  static WinScreen + #1067, #3967
+  static WinScreen + #1068, #3967
+  static WinScreen + #1069, #3967
+  static WinScreen + #1070, #3967
+  static WinScreen + #1071, #3967
+  static WinScreen + #1072, #3967
+  static WinScreen + #1073, #3967
+  static WinScreen + #1074, #3967
+  static WinScreen + #1075, #3967
+  static WinScreen + #1076, #3967
+  static WinScreen + #1077, #3967
+  static WinScreen + #1078, #3967
+  static WinScreen + #1079, #3967
+
+  ;Linha 27
+  static WinScreen + #1080, #3967
+  static WinScreen + #1081, #3967
+  static WinScreen + #1082, #3967
+  static WinScreen + #1083, #3967
+  static WinScreen + #1084, #3967
+  static WinScreen + #1085, #3967
+  static WinScreen + #1086, #3967
+  static WinScreen + #1087, #3967
+  static WinScreen + #1088, #3967
+  static WinScreen + #1089, #3967
+  static WinScreen + #1090, #3967
+  static WinScreen + #1091, #3967
+  static WinScreen + #1092, #3967
+  static WinScreen + #1093, #3967
+  static WinScreen + #1094, #3967
+  static WinScreen + #1095, #3967
+  static WinScreen + #1096, #3967
+  static WinScreen + #1097, #3967
+  static WinScreen + #1098, #3967
+  static WinScreen + #1099, #3967
+  static WinScreen + #1100, #3967
+  static WinScreen + #1101, #3967
+  static WinScreen + #1102, #3967
+  static WinScreen + #1103, #3967
+  static WinScreen + #1104, #3967
+  static WinScreen + #1105, #3967
+  static WinScreen + #1106, #3967
+  static WinScreen + #1107, #3967
+  static WinScreen + #1108, #3967
+  static WinScreen + #1109, #3967
+  static WinScreen + #1110, #3967
+  static WinScreen + #1111, #3967
+  static WinScreen + #1112, #3967
+  static WinScreen + #1113, #3967
+  static WinScreen + #1114, #3967
+  static WinScreen + #1115, #3967
+  static WinScreen + #1116, #3967
+  static WinScreen + #1117, #3967
+  static WinScreen + #1118, #3967
+  static WinScreen + #1119, #3967
+
+  ;Linha 28
+  static WinScreen + #1120, #3967
+  static WinScreen + #1121, #3967
+  static WinScreen + #1122, #3967
+  static WinScreen + #1123, #3967
+  static WinScreen + #1124, #3967
+  static WinScreen + #1125, #3967
+  static WinScreen + #1126, #3967
+  static WinScreen + #1127, #3967
+  static WinScreen + #1128, #3967
+  static WinScreen + #1129, #3967
+  static WinScreen + #1130, #3967
+  static WinScreen + #1131, #3967
+  static WinScreen + #1132, #3967
+  static WinScreen + #1133, #3967
+  static WinScreen + #1134, #3967
+  static WinScreen + #1135, #3967
+  static WinScreen + #1136, #3967
+  static WinScreen + #1137, #3967
+  static WinScreen + #1138, #3967
+  static WinScreen + #1139, #3967
+  static WinScreen + #1140, #3967
+  static WinScreen + #1141, #3967
+  static WinScreen + #1142, #3967
+  static WinScreen + #1143, #3967
+  static WinScreen + #1144, #3967
+  static WinScreen + #1145, #3967
+  static WinScreen + #1146, #3967
+  static WinScreen + #1147, #3967
+  static WinScreen + #1148, #3967
+  static WinScreen + #1149, #3967
+  static WinScreen + #1150, #3967
+  static WinScreen + #1151, #3967
+  static WinScreen + #1152, #3967
+  static WinScreen + #1153, #3967
+  static WinScreen + #1154, #3967
+  static WinScreen + #1155, #3967
+  static WinScreen + #1156, #3967
+  static WinScreen + #1157, #3967
+  static WinScreen + #1158, #3967
+  static WinScreen + #1159, #3967
+
+  ;Linha 29
+  static WinScreen + #1160, #3967
+  static WinScreen + #1161, #3967
+  static WinScreen + #1162, #3967
+  static WinScreen + #1163, #3967
+  static WinScreen + #1164, #3967
+  static WinScreen + #1165, #3967
+  static WinScreen + #1166, #3967
+  static WinScreen + #1167, #3967
+  static WinScreen + #1168, #3967
+  static WinScreen + #1169, #3967
+  static WinScreen + #1170, #3967
+  static WinScreen + #1171, #3967
+  static WinScreen + #1172, #3967
+  static WinScreen + #1173, #3967
+  static WinScreen + #1174, #3967
+  static WinScreen + #1175, #3967
+  static WinScreen + #1176, #3967
+  static WinScreen + #1177, #3967
+  static WinScreen + #1178, #3967
+  static WinScreen + #1179, #3967
+  static WinScreen + #1180, #3967
+  static WinScreen + #1181, #3967
+  static WinScreen + #1182, #3967
+  static WinScreen + #1183, #3967
+  static WinScreen + #1184, #3967
+  static WinScreen + #1185, #3967
+  static WinScreen + #1186, #3967
+  static WinScreen + #1187, #3967
+  static WinScreen + #1188, #3967
+  static WinScreen + #1189, #3967
+  static WinScreen + #1190, #3967
+  static WinScreen + #1191, #3967
+  static WinScreen + #1192, #3967
+  static WinScreen + #1193, #3967
+  static WinScreen + #1194, #3967
+  static WinScreen + #1195, #3967
+  static WinScreen + #1196, #3967
+  static WinScreen + #1197, #3967
+  static WinScreen + #1198, #3967
+  static WinScreen + #1199, #3967
+
+LoseScreen : var #1200
+  ;Linha 0
+  static LoseScreen + #0, #3967
+  static LoseScreen + #1, #3967
+  static LoseScreen + #2, #3967
+  static LoseScreen + #3, #3967
+  static LoseScreen + #4, #3967
+  static LoseScreen + #5, #3967
+  static LoseScreen + #6, #3967
+  static LoseScreen + #7, #3967
+  static LoseScreen + #8, #3967
+  static LoseScreen + #9, #3967
+  static LoseScreen + #10, #3967
+  static LoseScreen + #11, #3967
+  static LoseScreen + #12, #3967
+  static LoseScreen + #13, #3967
+  static LoseScreen + #14, #3967
+  static LoseScreen + #15, #3967
+  static LoseScreen + #16, #3967
+  static LoseScreen + #17, #3967
+  static LoseScreen + #18, #3967
+  static LoseScreen + #19, #3967
+  static LoseScreen + #20, #3967
+  static LoseScreen + #21, #3967
+  static LoseScreen + #22, #3967
+  static LoseScreen + #23, #3967
+  static LoseScreen + #24, #3967
+  static LoseScreen + #25, #3967
+  static LoseScreen + #26, #3967
+  static LoseScreen + #27, #3967
+  static LoseScreen + #28, #3967
+  static LoseScreen + #29, #3967
+  static LoseScreen + #30, #3967
+  static LoseScreen + #31, #3967
+  static LoseScreen + #32, #3967
+  static LoseScreen + #33, #3967
+  static LoseScreen + #34, #3967
+  static LoseScreen + #35, #3967
+  static LoseScreen + #36, #3967
+  static LoseScreen + #37, #3967
+  static LoseScreen + #38, #3967
+  static LoseScreen + #39, #3967
+
+  ;Linha 1
+  static LoseScreen + #40, #3967
+  static LoseScreen + #41, #3967
+  static LoseScreen + #42, #3967
+  static LoseScreen + #43, #3967
+  static LoseScreen + #44, #3967
+  static LoseScreen + #45, #3967
+  static LoseScreen + #46, #3967
+  static LoseScreen + #47, #3967
+  static LoseScreen + #48, #3967
+  static LoseScreen + #49, #3967
+  static LoseScreen + #50, #3967
+  static LoseScreen + #51, #3967
+  static LoseScreen + #52, #3967
+  static LoseScreen + #53, #3967
+  static LoseScreen + #54, #3967
+  static LoseScreen + #55, #3967
+  static LoseScreen + #56, #3967
+  static LoseScreen + #57, #3967
+  static LoseScreen + #58, #3967
+  static LoseScreen + #59, #3967
+  static LoseScreen + #60, #3967
+  static LoseScreen + #61, #3967
+  static LoseScreen + #62, #3967
+  static LoseScreen + #63, #3967
+  static LoseScreen + #64, #3967
+  static LoseScreen + #65, #3967
+  static LoseScreen + #66, #3967
+  static LoseScreen + #67, #3967
+  static LoseScreen + #68, #3967
+  static LoseScreen + #69, #3967
+  static LoseScreen + #70, #3967
+  static LoseScreen + #71, #3967
+  static LoseScreen + #72, #3967
+  static LoseScreen + #73, #3967
+  static LoseScreen + #74, #3967
+  static LoseScreen + #75, #3967
+  static LoseScreen + #76, #3967
+  static LoseScreen + #77, #3967
+  static LoseScreen + #78, #3967
+  static LoseScreen + #79, #3967
+
+  ;Linha 2
+  static LoseScreen + #80, #3967
+  static LoseScreen + #81, #3967
+  static LoseScreen + #82, #3967
+  static LoseScreen + #83, #3967
+  static LoseScreen + #84, #3967
+  static LoseScreen + #85, #3967
+  static LoseScreen + #86, #3967
+  static LoseScreen + #87, #3967
+  static LoseScreen + #88, #3967
+  static LoseScreen + #89, #3967
+  static LoseScreen + #90, #3967
+  static LoseScreen + #91, #3967
+  static LoseScreen + #92, #3967
+  static LoseScreen + #93, #3967
+  static LoseScreen + #94, #3967
+  static LoseScreen + #95, #3967
+  static LoseScreen + #96, #3967
+  static LoseScreen + #97, #3967
+  static LoseScreen + #98, #3967
+  static LoseScreen + #99, #3967
+  static LoseScreen + #100, #3967
+  static LoseScreen + #101, #3967
+  static LoseScreen + #102, #3967
+  static LoseScreen + #103, #3967
+  static LoseScreen + #104, #3967
+  static LoseScreen + #105, #3967
+  static LoseScreen + #106, #3967
+  static LoseScreen + #107, #3967
+  static LoseScreen + #108, #3967
+  static LoseScreen + #109, #3967
+  static LoseScreen + #110, #3967
+  static LoseScreen + #111, #3967
+  static LoseScreen + #112, #3967
+  static LoseScreen + #113, #3967
+  static LoseScreen + #114, #3967
+  static LoseScreen + #115, #3967
+  static LoseScreen + #116, #3967
+  static LoseScreen + #117, #3967
+  static LoseScreen + #118, #3967
+  static LoseScreen + #119, #3967
+
+  ;Linha 3
+  static LoseScreen + #120, #3967
+  static LoseScreen + #121, #3967
+  static LoseScreen + #122, #3967
+  static LoseScreen + #123, #3967
+  static LoseScreen + #124, #3967
+  static LoseScreen + #125, #3967
+  static LoseScreen + #126, #93
+  static LoseScreen + #127, #3967
+  static LoseScreen + #128, #93
+  static LoseScreen + #129, #3967
+  static LoseScreen + #130, #3967
+  static LoseScreen + #131, #93
+  static LoseScreen + #132, #93
+  static LoseScreen + #133, #3967
+  static LoseScreen + #134, #3967
+  static LoseScreen + #135, #3967
+  static LoseScreen + #136, #93
+  static LoseScreen + #137, #93
+  static LoseScreen + #138, #93
+  static LoseScreen + #139, #3967
+  static LoseScreen + #140, #3967
+  static LoseScreen + #141, #93
+  static LoseScreen + #142, #93
+  static LoseScreen + #143, #93
+  static LoseScreen + #144, #3967
+  static LoseScreen + #145, #3967
+  static LoseScreen + #146, #3967
+  static LoseScreen + #147, #3967
+  static LoseScreen + #148, #3967
+  static LoseScreen + #149, #3967
+  static LoseScreen + #150, #3967
+  static LoseScreen + #151, #3967
+  static LoseScreen + #152, #3967
+  static LoseScreen + #153, #3967
+  static LoseScreen + #154, #3967
+  static LoseScreen + #155, #3967
+  static LoseScreen + #156, #3967
+  static LoseScreen + #157, #3967
+  static LoseScreen + #158, #3967
+  static LoseScreen + #159, #3967
+
+  ;Linha 4
+  static LoseScreen + #160, #3967
+  static LoseScreen + #161, #3967
+  static LoseScreen + #162, #3967
+  static LoseScreen + #163, #3967
+  static LoseScreen + #164, #3967
+  static LoseScreen + #165, #3967
+  static LoseScreen + #166, #93
+  static LoseScreen + #167, #3967
+  static LoseScreen + #168, #93
+  static LoseScreen + #169, #3967
+  static LoseScreen + #170, #93
+  static LoseScreen + #171, #3967
+  static LoseScreen + #172, #3967
+  static LoseScreen + #173, #93
+  static LoseScreen + #174, #3967
+  static LoseScreen + #175, #93
+  static LoseScreen + #176, #3967
+  static LoseScreen + #177, #3967
+  static LoseScreen + #178, #3967
+  static LoseScreen + #179, #3967
+  static LoseScreen + #180, #93
+  static LoseScreen + #181, #3967
+  static LoseScreen + #182, #3967
+  static LoseScreen + #183, #3967
+  static LoseScreen + #184, #3967
+  static LoseScreen + #185, #3967
+  static LoseScreen + #186, #3967
+  static LoseScreen + #187, #3967
+  static LoseScreen + #188, #3967
+  static LoseScreen + #189, #3967
+  static LoseScreen + #190, #3967
+  static LoseScreen + #191, #3967
+  static LoseScreen + #192, #3967
+  static LoseScreen + #193, #3967
+  static LoseScreen + #194, #3967
+  static LoseScreen + #195, #3967
+  static LoseScreen + #196, #3967
+  static LoseScreen + #197, #3967
+  static LoseScreen + #198, #3967
+  static LoseScreen + #199, #3967
+
+  ;Linha 5
+  static LoseScreen + #200, #3967
+  static LoseScreen + #201, #3967
+  static LoseScreen + #202, #3967
+  static LoseScreen + #203, #3967
+  static LoseScreen + #204, #3967
+  static LoseScreen + #205, #3967
+  static LoseScreen + #206, #93
+  static LoseScreen + #207, #3967
+  static LoseScreen + #208, #93
+  static LoseScreen + #209, #3967
+  static LoseScreen + #210, #93
+  static LoseScreen + #211, #3967
+  static LoseScreen + #212, #3967
+  static LoseScreen + #213, #93
+  static LoseScreen + #214, #3967
+  static LoseScreen + #215, #93
+  static LoseScreen + #216, #3967
+  static LoseScreen + #217, #3967
+  static LoseScreen + #218, #3967
+  static LoseScreen + #219, #3967
+  static LoseScreen + #220, #93
+  static LoseScreen + #221, #93
+  static LoseScreen + #222, #93
+  static LoseScreen + #223, #3967
+  static LoseScreen + #224, #3967
+  static LoseScreen + #225, #3967
+  static LoseScreen + #226, #3967
+  static LoseScreen + #227, #3967
+  static LoseScreen + #228, #3967
+  static LoseScreen + #229, #3967
+  static LoseScreen + #230, #3967
+  static LoseScreen + #231, #3967
+  static LoseScreen + #232, #3967
+  static LoseScreen + #233, #3967
+  static LoseScreen + #234, #3967
+  static LoseScreen + #235, #3967
+  static LoseScreen + #236, #3967
+  static LoseScreen + #237, #3967
+  static LoseScreen + #238, #3967
+  static LoseScreen + #239, #3967
+
+  ;Linha 6
+  static LoseScreen + #240, #3967
+  static LoseScreen + #241, #3967
+  static LoseScreen + #242, #3967
+  static LoseScreen + #243, #3967
+  static LoseScreen + #244, #3967
+  static LoseScreen + #245, #3967
+  static LoseScreen + #246, #93
+  static LoseScreen + #247, #3967
+  static LoseScreen + #248, #93
+  static LoseScreen + #249, #3967
+  static LoseScreen + #250, #93
+  static LoseScreen + #251, #3967
+  static LoseScreen + #252, #3967
+  static LoseScreen + #253, #93
+  static LoseScreen + #254, #3967
+  static LoseScreen + #255, #93
+  static LoseScreen + #256, #3967
+  static LoseScreen + #257, #3967
+  static LoseScreen + #258, #3967
+  static LoseScreen + #259, #3967
+  static LoseScreen + #260, #93
+  static LoseScreen + #261, #3967
+  static LoseScreen + #262, #3967
+  static LoseScreen + #263, #3967
+  static LoseScreen + #264, #3967
+  static LoseScreen + #265, #3967
+  static LoseScreen + #266, #3967
+  static LoseScreen + #267, #3967
+  static LoseScreen + #268, #3967
+  static LoseScreen + #269, #3967
+  static LoseScreen + #270, #3967
+  static LoseScreen + #271, #3967
+  static LoseScreen + #272, #3967
+  static LoseScreen + #273, #3967
+  static LoseScreen + #274, #3967
+  static LoseScreen + #275, #3967
+  static LoseScreen + #276, #3967
+  static LoseScreen + #277, #3967
+  static LoseScreen + #278, #3967
+  static LoseScreen + #279, #3967
+
+  ;Linha 7
+  static LoseScreen + #280, #3967
+  static LoseScreen + #281, #3967
+  static LoseScreen + #282, #3967
+  static LoseScreen + #283, #3967
+  static LoseScreen + #284, #3967
+  static LoseScreen + #285, #3967
+  static LoseScreen + #286, #3967
+  static LoseScreen + #287, #93
+  static LoseScreen + #288, #3967
+  static LoseScreen + #289, #3967
+  static LoseScreen + #290, #3967
+  static LoseScreen + #291, #93
+  static LoseScreen + #292, #93
+  static LoseScreen + #293, #3967
+  static LoseScreen + #294, #3967
+  static LoseScreen + #295, #3967
+  static LoseScreen + #296, #93
+  static LoseScreen + #297, #93
+  static LoseScreen + #298, #93
+  static LoseScreen + #299, #3967
+  static LoseScreen + #300, #3967
+  static LoseScreen + #301, #93
+  static LoseScreen + #302, #93
+  static LoseScreen + #303, #93
+  static LoseScreen + #304, #3967
+  static LoseScreen + #305, #3967
+  static LoseScreen + #306, #3967
+  static LoseScreen + #307, #3967
+  static LoseScreen + #308, #3967
+  static LoseScreen + #309, #3967
+  static LoseScreen + #310, #3967
+  static LoseScreen + #311, #3967
+  static LoseScreen + #312, #3967
+  static LoseScreen + #313, #3967
+  static LoseScreen + #314, #3967
+  static LoseScreen + #315, #3967
+  static LoseScreen + #316, #3967
+  static LoseScreen + #317, #3967
+  static LoseScreen + #318, #3967
+  static LoseScreen + #319, #3967
+
+  ;Linha 8
+  static LoseScreen + #320, #3967
+  static LoseScreen + #321, #3967
+  static LoseScreen + #322, #3967
+  static LoseScreen + #323, #3967
+  static LoseScreen + #324, #3967
+  static LoseScreen + #325, #3967
+  static LoseScreen + #326, #3967
+  static LoseScreen + #327, #3967
+  static LoseScreen + #328, #3967
+  static LoseScreen + #329, #3967
+  static LoseScreen + #330, #3967
+  static LoseScreen + #331, #3967
+  static LoseScreen + #332, #3967
+  static LoseScreen + #333, #3967
+  static LoseScreen + #334, #3967
+  static LoseScreen + #335, #3967
+  static LoseScreen + #336, #3967
+  static LoseScreen + #337, #3967
+  static LoseScreen + #338, #3967
+  static LoseScreen + #339, #3967
+  static LoseScreen + #340, #3967
+  static LoseScreen + #341, #3967
+  static LoseScreen + #342, #3967
+  static LoseScreen + #343, #3967
+  static LoseScreen + #344, #3967
+  static LoseScreen + #345, #3967
+  static LoseScreen + #346, #3967
+  static LoseScreen + #347, #3967
+  static LoseScreen + #348, #3967
+  static LoseScreen + #349, #3967
+  static LoseScreen + #350, #3967
+  static LoseScreen + #351, #3967
+  static LoseScreen + #352, #3967
+  static LoseScreen + #353, #3967
+  static LoseScreen + #354, #3967
+  static LoseScreen + #355, #3967
+  static LoseScreen + #356, #3967
+  static LoseScreen + #357, #3967
+  static LoseScreen + #358, #3967
+  static LoseScreen + #359, #3967
+
+  ;Linha 9
+  static LoseScreen + #360, #3967
+  static LoseScreen + #361, #3967
+  static LoseScreen + #362, #3967
+  static LoseScreen + #363, #3967
+  static LoseScreen + #364, #3967
+  static LoseScreen + #365, #3967
+  static LoseScreen + #366, #3967
+  static LoseScreen + #367, #3967
+  static LoseScreen + #368, #3967
+  static LoseScreen + #369, #3967
+  static LoseScreen + #370, #3967
+  static LoseScreen + #371, #3967
+  static LoseScreen + #372, #3967
+  static LoseScreen + #373, #3967
+  static LoseScreen + #374, #3967
+  static LoseScreen + #375, #3967
+  static LoseScreen + #376, #3967
+  static LoseScreen + #377, #3967
+  static LoseScreen + #378, #3967
+  static LoseScreen + #379, #3967
+  static LoseScreen + #380, #3967
+  static LoseScreen + #381, #3967
+  static LoseScreen + #382, #3967
+  static LoseScreen + #383, #3967
+  static LoseScreen + #384, #3967
+  static LoseScreen + #385, #3967
+  static LoseScreen + #386, #3967
+  static LoseScreen + #387, #3967
+  static LoseScreen + #388, #3967
+  static LoseScreen + #389, #3967
+  static LoseScreen + #390, #3967
+  static LoseScreen + #391, #3967
+  static LoseScreen + #392, #3967
+  static LoseScreen + #393, #3967
+  static LoseScreen + #394, #3967
+  static LoseScreen + #395, #3967
+  static LoseScreen + #396, #3967
+  static LoseScreen + #397, #3967
+  static LoseScreen + #398, #3967
+  static LoseScreen + #399, #3967
+
+  ;Linha 10
+  static LoseScreen + #400, #3967
+  static LoseScreen + #401, #3967
+  static LoseScreen + #402, #3967
+  static LoseScreen + #403, #3967
+  static LoseScreen + #404, #3967
+  static LoseScreen + #405, #3967
+  static LoseScreen + #406, #3967
+  static LoseScreen + #407, #3967
+  static LoseScreen + #408, #3967
+  static LoseScreen + #409, #3967
+  static LoseScreen + #410, #3967
+  static LoseScreen + #411, #3967
+  static LoseScreen + #412, #3967
+  static LoseScreen + #413, #3967
+  static LoseScreen + #414, #3967
+  static LoseScreen + #415, #3967
+  static LoseScreen + #416, #3967
+  static LoseScreen + #417, #3967
+  static LoseScreen + #418, #3967
+  static LoseScreen + #419, #3967
+  static LoseScreen + #420, #3967
+  static LoseScreen + #421, #3967
+  static LoseScreen + #422, #3967
+  static LoseScreen + #423, #3967
+  static LoseScreen + #424, #3967
+  static LoseScreen + #425, #3967
+  static LoseScreen + #426, #3967
+  static LoseScreen + #427, #3967
+  static LoseScreen + #428, #3967
+  static LoseScreen + #429, #3967
+  static LoseScreen + #430, #3967
+  static LoseScreen + #431, #3967
+  static LoseScreen + #432, #3967
+  static LoseScreen + #433, #3967
+  static LoseScreen + #434, #3967
+  static LoseScreen + #435, #3967
+  static LoseScreen + #436, #3967
+  static LoseScreen + #437, #3967
+  static LoseScreen + #438, #3967
+  static LoseScreen + #439, #3967
+
+  ;Linha 11
+  static LoseScreen + #440, #3967
+  static LoseScreen + #441, #3967
+  static LoseScreen + #442, #3967
+  static LoseScreen + #443, #3967
+  static LoseScreen + #444, #3967
+  static LoseScreen + #445, #3967
+  static LoseScreen + #446, #3967
+  static LoseScreen + #447, #93
+  static LoseScreen + #448, #93
+  static LoseScreen + #449, #3967
+  static LoseScreen + #450, #3967
+  static LoseScreen + #451, #3967
+  static LoseScreen + #452, #2397
+  static LoseScreen + #453, #2397
+  static LoseScreen + #454, #2397
+  static LoseScreen + #455, #3967
+  static LoseScreen + #456, #3967
+  static LoseScreen + #457, #93
+  static LoseScreen + #458, #93
+  static LoseScreen + #459, #3967
+  static LoseScreen + #460, #3967
+  static LoseScreen + #461, #3165
+  static LoseScreen + #462, #3165
+  static LoseScreen + #463, #3967
+  static LoseScreen + #464, #3967
+  static LoseScreen + #465, #3967
+  static LoseScreen + #466, #93
+  static LoseScreen + #467, #93
+  static LoseScreen + #468, #93
+  static LoseScreen + #469, #3967
+  static LoseScreen + #470, #2397
+  static LoseScreen + #471, #3967
+  static LoseScreen + #472, #3967
+  static LoseScreen + #473, #2397
+  static LoseScreen + #474, #3967
+  static LoseScreen + #475, #3967
+  static LoseScreen + #476, #3967
+  static LoseScreen + #477, #3967
+  static LoseScreen + #478, #3967
+  static LoseScreen + #479, #3967
+
+  ;Linha 12
+  static LoseScreen + #480, #3967
+  static LoseScreen + #481, #3967
+  static LoseScreen + #482, #3967
+  static LoseScreen + #483, #3967
+  static LoseScreen + #484, #3967
+  static LoseScreen + #485, #3967
+  static LoseScreen + #486, #93
+  static LoseScreen + #487, #3967
+  static LoseScreen + #488, #3967
+  static LoseScreen + #489, #93
+  static LoseScreen + #490, #3967
+  static LoseScreen + #491, #2397
+  static LoseScreen + #492, #3967
+  static LoseScreen + #493, #3967
+  static LoseScreen + #494, #3967
+  static LoseScreen + #495, #3967
+  static LoseScreen + #496, #93
+  static LoseScreen + #497, #3967
+  static LoseScreen + #498, #3967
+  static LoseScreen + #499, #93
+  static LoseScreen + #500, #3967
+  static LoseScreen + #501, #3165
+  static LoseScreen + #502, #3967
+  static LoseScreen + #503, #3165
+  static LoseScreen + #504, #3967
+  static LoseScreen + #505, #93
+  static LoseScreen + #506, #3967
+  static LoseScreen + #507, #3967
+  static LoseScreen + #508, #3967
+  static LoseScreen + #509, #3967
+  static LoseScreen + #510, #2397
+  static LoseScreen + #511, #3967
+  static LoseScreen + #512, #3967
+  static LoseScreen + #513, #2397
+  static LoseScreen + #514, #3967
+  static LoseScreen + #515, #3967
+  static LoseScreen + #516, #3967
+  static LoseScreen + #517, #3967
+  static LoseScreen + #518, #3967
+  static LoseScreen + #519, #3967
+
+  ;Linha 13
+  static LoseScreen + #520, #3967
+  static LoseScreen + #521, #3967
+  static LoseScreen + #522, #3967
+  static LoseScreen + #523, #3967
+  static LoseScreen + #524, #3967
+  static LoseScreen + #525, #3967
+  static LoseScreen + #526, #93
+  static LoseScreen + #527, #93
+  static LoseScreen + #528, #93
+  static LoseScreen + #529, #3967
+  static LoseScreen + #530, #3967
+  static LoseScreen + #531, #2397
+  static LoseScreen + #532, #2397
+  static LoseScreen + #533, #2397
+  static LoseScreen + #534, #3967
+  static LoseScreen + #535, #3967
+  static LoseScreen + #536, #93
+  static LoseScreen + #537, #3967
+  static LoseScreen + #538, #3967
+  static LoseScreen + #539, #93
+  static LoseScreen + #540, #3967
+  static LoseScreen + #541, #3165
+  static LoseScreen + #542, #3967
+  static LoseScreen + #543, #3165
+  static LoseScreen + #544, #3967
+  static LoseScreen + #545, #93
+  static LoseScreen + #546, #93
+  static LoseScreen + #547, #93
+  static LoseScreen + #548, #3967
+  static LoseScreen + #549, #3967
+  static LoseScreen + #550, #2397
+  static LoseScreen + #551, #3967
+  static LoseScreen + #552, #3967
+  static LoseScreen + #553, #2397
+  static LoseScreen + #554, #3967
+  static LoseScreen + #555, #3967
+  static LoseScreen + #556, #3967
+  static LoseScreen + #557, #3967
+  static LoseScreen + #558, #3967
+  static LoseScreen + #559, #3967
+
+  ;Linha 14
+  static LoseScreen + #560, #3967
+  static LoseScreen + #561, #3967
+  static LoseScreen + #562, #3967
+  static LoseScreen + #563, #3967
+  static LoseScreen + #564, #3967
+  static LoseScreen + #565, #3967
+  static LoseScreen + #566, #93
+  static LoseScreen + #567, #3967
+  static LoseScreen + #568, #3967
+  static LoseScreen + #569, #3967
+  static LoseScreen + #570, #3967
+  static LoseScreen + #571, #2397
+  static LoseScreen + #572, #3967
+  static LoseScreen + #573, #3967
+  static LoseScreen + #574, #3967
+  static LoseScreen + #575, #3967
+  static LoseScreen + #576, #93
+  static LoseScreen + #577, #93
+  static LoseScreen + #578, #93
+  static LoseScreen + #579, #3967
+  static LoseScreen + #580, #3967
+  static LoseScreen + #581, #3165
+  static LoseScreen + #582, #3967
+  static LoseScreen + #583, #3165
+  static LoseScreen + #584, #3967
+  static LoseScreen + #585, #93
+  static LoseScreen + #586, #3967
+  static LoseScreen + #587, #3967
+  static LoseScreen + #588, #3967
+  static LoseScreen + #589, #3967
+  static LoseScreen + #590, #2397
+  static LoseScreen + #591, #3967
+  static LoseScreen + #592, #3967
+  static LoseScreen + #593, #2397
+  static LoseScreen + #594, #3967
+  static LoseScreen + #595, #3967
+  static LoseScreen + #596, #3967
+  static LoseScreen + #597, #3967
+  static LoseScreen + #598, #3967
+  static LoseScreen + #599, #3967
+
+  ;Linha 15
+  static LoseScreen + #600, #3967
+  static LoseScreen + #601, #3967
+  static LoseScreen + #602, #3967
+  static LoseScreen + #603, #3967
+  static LoseScreen + #604, #3967
+  static LoseScreen + #605, #3967
+  static LoseScreen + #606, #93
+  static LoseScreen + #607, #3967
+  static LoseScreen + #608, #3967
+  static LoseScreen + #609, #3967
+  static LoseScreen + #610, #3967
+  static LoseScreen + #611, #3967
+  static LoseScreen + #612, #2397
+  static LoseScreen + #613, #2397
+  static LoseScreen + #614, #2397
+  static LoseScreen + #615, #3967
+  static LoseScreen + #616, #93
+  static LoseScreen + #617, #3967
+  static LoseScreen + #618, #3967
+  static LoseScreen + #619, #93
+  static LoseScreen + #620, #3967
+  static LoseScreen + #621, #3165
+  static LoseScreen + #622, #3165
+  static LoseScreen + #623, #3967
+  static LoseScreen + #624, #3967
+  static LoseScreen + #625, #3967
+  static LoseScreen + #626, #93
+  static LoseScreen + #627, #93
+  static LoseScreen + #628, #93
+  static LoseScreen + #629, #3967
+  static LoseScreen + #630, #3967
+  static LoseScreen + #631, #2397
+  static LoseScreen + #632, #2397
+  static LoseScreen + #633, #3967
+  static LoseScreen + #634, #3967
+  static LoseScreen + #635, #3967
+  static LoseScreen + #636, #3967
+  static LoseScreen + #637, #3967
+  static LoseScreen + #638, #3967
+  static LoseScreen + #639, #3967
+
+  ;Linha 16
+  static LoseScreen + #640, #3967
+  static LoseScreen + #641, #3967
+  static LoseScreen + #642, #3967
+  static LoseScreen + #643, #3967
+  static LoseScreen + #644, #3967
+  static LoseScreen + #645, #3967
+  static LoseScreen + #646, #3967
+  static LoseScreen + #647, #3967
+  static LoseScreen + #648, #3967
+  static LoseScreen + #649, #3967
+  static LoseScreen + #650, #3967
+  static LoseScreen + #651, #3967
+  static LoseScreen + #652, #3967
+  static LoseScreen + #653, #3967
+  static LoseScreen + #654, #3967
+  static LoseScreen + #655, #3967
+  static LoseScreen + #656, #3967
+  static LoseScreen + #657, #3967
+  static LoseScreen + #658, #3967
+  static LoseScreen + #659, #3967
+  static LoseScreen + #660, #3967
+  static LoseScreen + #661, #3967
+  static LoseScreen + #662, #3967
+  static LoseScreen + #663, #3967
+  static LoseScreen + #664, #3967
+  static LoseScreen + #665, #3967
+  static LoseScreen + #666, #3967
+  static LoseScreen + #667, #3967
+  static LoseScreen + #668, #3967
+  static LoseScreen + #669, #3967
+  static LoseScreen + #670, #3967
+  static LoseScreen + #671, #3967
+  static LoseScreen + #672, #3967
+  static LoseScreen + #673, #3967
+  static LoseScreen + #674, #3967
+  static LoseScreen + #675, #3967
+  static LoseScreen + #676, #3967
+  static LoseScreen + #677, #3967
+  static LoseScreen + #678, #3967
+  static LoseScreen + #679, #3967
+
+  ;Linha 17
+  static LoseScreen + #680, #3967
+  static LoseScreen + #681, #3967
+  static LoseScreen + #682, #3967
+  static LoseScreen + #683, #3967
+  static LoseScreen + #684, #3967
+  static LoseScreen + #685, #3967
+  static LoseScreen + #686, #3967
+  static LoseScreen + #687, #3967
+  static LoseScreen + #688, #3967
+  static LoseScreen + #689, #3967
+  static LoseScreen + #690, #3967
+  static LoseScreen + #691, #3967
+  static LoseScreen + #692, #3967
+  static LoseScreen + #693, #3967
+  static LoseScreen + #694, #3967
+  static LoseScreen + #695, #3967
+  static LoseScreen + #696, #3967
+  static LoseScreen + #697, #3967
+  static LoseScreen + #698, #3967
+  static LoseScreen + #699, #3967
+  static LoseScreen + #700, #3967
+  static LoseScreen + #701, #3967
+  static LoseScreen + #702, #3967
+  static LoseScreen + #703, #3967
+  static LoseScreen + #704, #3967
+  static LoseScreen + #705, #3967
+  static LoseScreen + #706, #3967
+  static LoseScreen + #707, #3967
+  static LoseScreen + #708, #3967
+  static LoseScreen + #709, #3967
+  static LoseScreen + #710, #3967
+  static LoseScreen + #711, #3967
+  static LoseScreen + #712, #3967
+  static LoseScreen + #713, #3967
+  static LoseScreen + #714, #3967
+  static LoseScreen + #715, #3967
+  static LoseScreen + #716, #3967
+  static LoseScreen + #717, #3967
+  static LoseScreen + #718, #3967
+  static LoseScreen + #719, #3967
+
+  ;Linha 18
+  static LoseScreen + #720, #3967
+  static LoseScreen + #721, #3967
+  static LoseScreen + #722, #3967
+  static LoseScreen + #723, #3967
+  static LoseScreen + #724, #3967
+  static LoseScreen + #725, #3967
+  static LoseScreen + #726, #3967
+  static LoseScreen + #727, #3967
+  static LoseScreen + #728, #3967
+  static LoseScreen + #729, #3967
+  static LoseScreen + #730, #3967
+  static LoseScreen + #731, #3967
+  static LoseScreen + #732, #3967
+  static LoseScreen + #733, #3967
+  static LoseScreen + #734, #3967
+  static LoseScreen + #735, #3967
+  static LoseScreen + #736, #3967
+  static LoseScreen + #737, #3967
+  static LoseScreen + #738, #3967
+  static LoseScreen + #739, #3967
+  static LoseScreen + #740, #3967
+  static LoseScreen + #741, #3967
+  static LoseScreen + #742, #3967
+  static LoseScreen + #743, #3967
+  static LoseScreen + #744, #3967
+  static LoseScreen + #745, #3967
+  static LoseScreen + #746, #3967
+  static LoseScreen + #747, #3967
+  static LoseScreen + #748, #3967
+  static LoseScreen + #749, #3967
+  static LoseScreen + #750, #3967
+  static LoseScreen + #751, #3967
+  static LoseScreen + #752, #3967
+  static LoseScreen + #753, #3967
+  static LoseScreen + #754, #3967
+  static LoseScreen + #755, #3967
+  static LoseScreen + #756, #3967
+  static LoseScreen + #757, #3967
+  static LoseScreen + #758, #3967
+  static LoseScreen + #759, #3967
+
+  ;Linha 19
+  static LoseScreen + #760, #3967
+  static LoseScreen + #761, #3967
+  static LoseScreen + #762, #3967
+  static LoseScreen + #763, #3967
+  static LoseScreen + #764, #3967
+  static LoseScreen + #765, #3967
+  static LoseScreen + #766, #83
+  static LoseScreen + #767, #67
+  static LoseScreen + #768, #79
+  static LoseScreen + #769, #82
+  static LoseScreen + #770, #69
+  static LoseScreen + #771, #3967
+  static LoseScreen + #772, #3967
+  static LoseScreen + #773, #3967
+  static LoseScreen + #774, #3967
+  static LoseScreen + #775, #3967
+  static LoseScreen + #776, #3967
+  static LoseScreen + #777, #3967
+  static LoseScreen + #778, #3967
+  static LoseScreen + #779, #3967
+  static LoseScreen + #780, #3967
+  static LoseScreen + #781, #3967
+  static LoseScreen + #782, #3967
+  static LoseScreen + #783, #3967
+  static LoseScreen + #784, #3967
+  static LoseScreen + #785, #3967
+  static LoseScreen + #786, #3967
+  static LoseScreen + #787, #3967
+  static LoseScreen + #788, #3967
+  static LoseScreen + #789, #3967
+  static LoseScreen + #790, #3967
+  static LoseScreen + #791, #3967
+  static LoseScreen + #792, #3967
+  static LoseScreen + #793, #3967
+  static LoseScreen + #794, #3967
+  static LoseScreen + #795, #3967
+  static LoseScreen + #796, #3967
+  static LoseScreen + #797, #3967
+  static LoseScreen + #798, #3967
+  static LoseScreen + #799, #3967
+
+  ;Linha 20
+  static LoseScreen + #800, #3967
+  static LoseScreen + #801, #3967
+  static LoseScreen + #802, #3967
+  static LoseScreen + #803, #3967
+  static LoseScreen + #804, #3967
+  static LoseScreen + #805, #3967
+  static LoseScreen + #806, #3967
+  static LoseScreen + #807, #3967
+  static LoseScreen + #808, #3967
+  static LoseScreen + #809, #3967
+  static LoseScreen + #810, #3967
+  static LoseScreen + #811, #3967
+  static LoseScreen + #812, #3967
+  static LoseScreen + #813, #3967
+  static LoseScreen + #814, #3967
+  static LoseScreen + #815, #3967
+  static LoseScreen + #816, #3967
+  static LoseScreen + #817, #3967
+  static LoseScreen + #818, #3967
+  static LoseScreen + #819, #3967
+  static LoseScreen + #820, #3967
+  static LoseScreen + #821, #3967
+  static LoseScreen + #822, #3967
+  static LoseScreen + #823, #3967
+  static LoseScreen + #824, #3967
+  static LoseScreen + #825, #3967
+  static LoseScreen + #826, #3967
+  static LoseScreen + #827, #3967
+  static LoseScreen + #828, #3967
+  static LoseScreen + #829, #3967
+  static LoseScreen + #830, #3967
+  static LoseScreen + #831, #3967
+  static LoseScreen + #832, #3967
+  static LoseScreen + #833, #3967
+  static LoseScreen + #834, #3967
+  static LoseScreen + #835, #3967
+  static LoseScreen + #836, #3967
+  static LoseScreen + #837, #3967
+  static LoseScreen + #838, #3967
+  static LoseScreen + #839, #3967
+
+  ;Linha 21
+  static LoseScreen + #840, #3967
+  static LoseScreen + #841, #3967
+  static LoseScreen + #842, #3967
+  static LoseScreen + #843, #3967
+  static LoseScreen + #844, #3967
+  static LoseScreen + #845, #3967
+  static LoseScreen + #846, #3967
+  static LoseScreen + #847, #3967
+  static LoseScreen + #848, #3967
+  static LoseScreen + #849, #3967
+  static LoseScreen + #850, #3967
+  static LoseScreen + #851, #3967
+  static LoseScreen + #852, #3967
+  static LoseScreen + #853, #3967
+  static LoseScreen + #854, #3967
+  static LoseScreen + #855, #3967
+  static LoseScreen + #856, #3967
+  static LoseScreen + #857, #3967
+  static LoseScreen + #858, #3967
+  static LoseScreen + #859, #3967
+  static LoseScreen + #860, #3967
+  static LoseScreen + #861, #3967
+  static LoseScreen + #862, #3967
+  static LoseScreen + #863, #3967
+  static LoseScreen + #864, #3967
+  static LoseScreen + #865, #3967
+  static LoseScreen + #866, #3967
+  static LoseScreen + #867, #3967
+  static LoseScreen + #868, #3967
+  static LoseScreen + #869, #3967
+  static LoseScreen + #870, #3967
+  static LoseScreen + #871, #3967
+  static LoseScreen + #872, #3967
+  static LoseScreen + #873, #3967
+  static LoseScreen + #874, #3967
+  static LoseScreen + #875, #3967
+  static LoseScreen + #876, #3967
+  static LoseScreen + #877, #3967
+  static LoseScreen + #878, #3967
+  static LoseScreen + #879, #3967
+
+  ;Linha 22
+  static LoseScreen + #880, #3967
+  static LoseScreen + #881, #3967
+  static LoseScreen + #882, #3967
+  static LoseScreen + #883, #3967
+  static LoseScreen + #884, #3967
+  static LoseScreen + #885, #3967
+  static LoseScreen + #886, #80
+  static LoseScreen + #887, #82
+  static LoseScreen + #888, #69
+  static LoseScreen + #889, #83
+  static LoseScreen + #890, #83
+  static LoseScreen + #891, #3967
+  static LoseScreen + #892, #88
+  static LoseScreen + #893, #3967
+  static LoseScreen + #894, #84
+  static LoseScreen + #895, #79
+  static LoseScreen + #896, #3967
+  static LoseScreen + #897, #80
+  static LoseScreen + #898, #76
+  static LoseScreen + #899, #65
+  static LoseScreen + #900, #89
+  static LoseScreen + #901, #3967
+  static LoseScreen + #902, #65
+  static LoseScreen + #903, #71
+  static LoseScreen + #904, #65
+  static LoseScreen + #905, #73
+  static LoseScreen + #906, #78
+  static LoseScreen + #907, #3967
+  static LoseScreen + #908, #3967
+  static LoseScreen + #909, #3967
+  static LoseScreen + #910, #3967
+  static LoseScreen + #911, #3967
+  static LoseScreen + #912, #3967
+  static LoseScreen + #913, #3967
+  static LoseScreen + #914, #3967
+  static LoseScreen + #915, #3967
+  static LoseScreen + #916, #3967
+  static LoseScreen + #917, #3967
+  static LoseScreen + #918, #3967
+  static LoseScreen + #919, #3967
+
+  ;Linha 23
+  static LoseScreen + #920, #3967
+  static LoseScreen + #921, #3967
+  static LoseScreen + #922, #3967
+  static LoseScreen + #923, #3967
+  static LoseScreen + #924, #3967
+  static LoseScreen + #925, #3967
+  static LoseScreen + #926, #3967
+  static LoseScreen + #927, #3967
+  static LoseScreen + #928, #3967
+  static LoseScreen + #929, #3967
+  static LoseScreen + #930, #3967
+  static LoseScreen + #931, #3967
+  static LoseScreen + #932, #3967
+  static LoseScreen + #933, #3967
+  static LoseScreen + #934, #3967
+  static LoseScreen + #935, #3967
+  static LoseScreen + #936, #3967
+  static LoseScreen + #937, #3967
+  static LoseScreen + #938, #3967
+  static LoseScreen + #939, #3967
+  static LoseScreen + #940, #3967
+  static LoseScreen + #941, #3967
+  static LoseScreen + #942, #3967
+  static LoseScreen + #943, #3967
+  static LoseScreen + #944, #3967
+  static LoseScreen + #945, #3967
+  static LoseScreen + #946, #3967
+  static LoseScreen + #947, #3967
+  static LoseScreen + #948, #3967
+  static LoseScreen + #949, #3967
+  static LoseScreen + #950, #3967
+  static LoseScreen + #951, #3967
+  static LoseScreen + #952, #3967
+  static LoseScreen + #953, #3967
+  static LoseScreen + #954, #3967
+  static LoseScreen + #955, #3967
+  static LoseScreen + #956, #3967
+  static LoseScreen + #957, #3967
+  static LoseScreen + #958, #3967
+  static LoseScreen + #959, #3967
+
+  ;Linha 24
+  static LoseScreen + #960, #3967
+  static LoseScreen + #961, #3967
+  static LoseScreen + #962, #3967
+  static LoseScreen + #963, #3967
+  static LoseScreen + #964, #3967
+  static LoseScreen + #965, #3967
+  static LoseScreen + #966, #80
+  static LoseScreen + #967, #82
+  static LoseScreen + #968, #69
+  static LoseScreen + #969, #83
+  static LoseScreen + #970, #83
+  static LoseScreen + #971, #3967
+  static LoseScreen + #972, #69
+  static LoseScreen + #973, #78
+  static LoseScreen + #974, #84
+  static LoseScreen + #975, #69
+  static LoseScreen + #976, #82
+  static LoseScreen + #977, #3967
+  static LoseScreen + #978, #84
+  static LoseScreen + #979, #79
+  static LoseScreen + #980, #3967
+  static LoseScreen + #981, #81
+  static LoseScreen + #982, #85
+  static LoseScreen + #983, #73
+  static LoseScreen + #984, #84
+  static LoseScreen + #985, #3967
+  static LoseScreen + #986, #71
+  static LoseScreen + #987, #65
+  static LoseScreen + #988, #77
+  static LoseScreen + #989, #69
+  static LoseScreen + #990, #3967
+  static LoseScreen + #991, #3967
+  static LoseScreen + #992, #3967
+  static LoseScreen + #993, #3967
+  static LoseScreen + #994, #3967
+  static LoseScreen + #995, #3967
+  static LoseScreen + #996, #3967
+  static LoseScreen + #997, #3967
+  static LoseScreen + #998, #3967
+  static LoseScreen + #999, #3967
+
+  ;Linha 25
+  static LoseScreen + #1000, #3967
+  static LoseScreen + #1001, #3967
+  static LoseScreen + #1002, #3967
+  static LoseScreen + #1003, #3967
+  static LoseScreen + #1004, #3967
+  static LoseScreen + #1005, #3967
+  static LoseScreen + #1006, #3967
+  static LoseScreen + #1007, #3967
+  static LoseScreen + #1008, #3967
+  static LoseScreen + #1009, #3967
+  static LoseScreen + #1010, #3967
+  static LoseScreen + #1011, #3967
+  static LoseScreen + #1012, #3967
+  static LoseScreen + #1013, #3967
+  static LoseScreen + #1014, #3967
+  static LoseScreen + #1015, #3967
+  static LoseScreen + #1016, #3967
+  static LoseScreen + #1017, #3967
+  static LoseScreen + #1018, #3967
+  static LoseScreen + #1019, #3967
+  static LoseScreen + #1020, #3967
+  static LoseScreen + #1021, #3967
+  static LoseScreen + #1022, #3967
+  static LoseScreen + #1023, #3967
+  static LoseScreen + #1024, #3967
+  static LoseScreen + #1025, #3967
+  static LoseScreen + #1026, #3967
+  static LoseScreen + #1027, #3967
+  static LoseScreen + #1028, #3967
+  static LoseScreen + #1029, #3967
+  static LoseScreen + #1030, #3967
+  static LoseScreen + #1031, #3967
+  static LoseScreen + #1032, #3967
+  static LoseScreen + #1033, #3967
+  static LoseScreen + #1034, #3967
+  static LoseScreen + #1035, #3967
+  static LoseScreen + #1036, #3967
+  static LoseScreen + #1037, #3967
+  static LoseScreen + #1038, #3967
+  static LoseScreen + #1039, #3967
+
+  ;Linha 26
+  static LoseScreen + #1040, #3967
+  static LoseScreen + #1041, #3967
+  static LoseScreen + #1042, #3967
+  static LoseScreen + #1043, #3967
+  static LoseScreen + #1044, #3967
+  static LoseScreen + #1045, #3967
+  static LoseScreen + #1046, #3967
+  static LoseScreen + #1047, #3967
+  static LoseScreen + #1048, #3967
+  static LoseScreen + #1049, #3967
+  static LoseScreen + #1050, #3967
+  static LoseScreen + #1051, #3967
+  static LoseScreen + #1052, #3967
+  static LoseScreen + #1053, #3967
+  static LoseScreen + #1054, #3967
+  static LoseScreen + #1055, #3967
+  static LoseScreen + #1056, #3967
+  static LoseScreen + #1057, #3967
+  static LoseScreen + #1058, #3967
+  static LoseScreen + #1059, #3967
+  static LoseScreen + #1060, #3967
+  static LoseScreen + #1061, #3967
+  static LoseScreen + #1062, #3967
+  static LoseScreen + #1063, #3967
+  static LoseScreen + #1064, #3967
+  static LoseScreen + #1065, #3967
+  static LoseScreen + #1066, #3967
+  static LoseScreen + #1067, #3967
+  static LoseScreen + #1068, #3967
+  static LoseScreen + #1069, #3967
+  static LoseScreen + #1070, #3967
+  static LoseScreen + #1071, #3967
+  static LoseScreen + #1072, #3967
+  static LoseScreen + #1073, #3967
+  static LoseScreen + #1074, #3967
+  static LoseScreen + #1075, #3967
+  static LoseScreen + #1076, #3967
+  static LoseScreen + #1077, #3967
+  static LoseScreen + #1078, #3967
+  static LoseScreen + #1079, #3967
+
+  ;Linha 27
+  static LoseScreen + #1080, #3967
+  static LoseScreen + #1081, #3967
+  static LoseScreen + #1082, #3967
+  static LoseScreen + #1083, #3967
+  static LoseScreen + #1084, #3967
+  static LoseScreen + #1085, #3967
+  static LoseScreen + #1086, #3967
+  static LoseScreen + #1087, #3967
+  static LoseScreen + #1088, #3967
+  static LoseScreen + #1089, #3967
+  static LoseScreen + #1090, #3967
+  static LoseScreen + #1091, #3967
+  static LoseScreen + #1092, #3967
+  static LoseScreen + #1093, #3967
+  static LoseScreen + #1094, #3967
+  static LoseScreen + #1095, #3967
+  static LoseScreen + #1096, #3967
+  static LoseScreen + #1097, #3967
+  static LoseScreen + #1098, #3967
+  static LoseScreen + #1099, #3967
+  static LoseScreen + #1100, #3967
+  static LoseScreen + #1101, #3967
+  static LoseScreen + #1102, #3967
+  static LoseScreen + #1103, #3967
+  static LoseScreen + #1104, #3967
+  static LoseScreen + #1105, #3967
+  static LoseScreen + #1106, #3967
+  static LoseScreen + #1107, #3967
+  static LoseScreen + #1108, #3967
+  static LoseScreen + #1109, #3967
+  static LoseScreen + #1110, #3967
+  static LoseScreen + #1111, #3967
+  static LoseScreen + #1112, #3967
+  static LoseScreen + #1113, #3967
+  static LoseScreen + #1114, #3967
+  static LoseScreen + #1115, #3967
+  static LoseScreen + #1116, #3967
+  static LoseScreen + #1117, #3967
+  static LoseScreen + #1118, #3967
+  static LoseScreen + #1119, #3967
+
+  ;Linha 28
+  static LoseScreen + #1120, #3967
+  static LoseScreen + #1121, #3967
+  static LoseScreen + #1122, #3967
+  static LoseScreen + #1123, #3967
+  static LoseScreen + #1124, #3967
+  static LoseScreen + #1125, #3967
+  static LoseScreen + #1126, #3967
+  static LoseScreen + #1127, #3967
+  static LoseScreen + #1128, #3967
+  static LoseScreen + #1129, #3967
+  static LoseScreen + #1130, #3967
+  static LoseScreen + #1131, #3967
+  static LoseScreen + #1132, #3967
+  static LoseScreen + #1133, #3967
+  static LoseScreen + #1134, #3967
+  static LoseScreen + #1135, #3967
+  static LoseScreen + #1136, #3967
+  static LoseScreen + #1137, #3967
+  static LoseScreen + #1138, #3967
+  static LoseScreen + #1139, #3967
+  static LoseScreen + #1140, #3967
+  static LoseScreen + #1141, #3967
+  static LoseScreen + #1142, #3967
+  static LoseScreen + #1143, #3967
+  static LoseScreen + #1144, #3967
+  static LoseScreen + #1145, #3967
+  static LoseScreen + #1146, #3967
+  static LoseScreen + #1147, #3967
+  static LoseScreen + #1148, #3967
+  static LoseScreen + #1149, #3967
+  static LoseScreen + #1150, #3967
+  static LoseScreen + #1151, #3967
+  static LoseScreen + #1152, #3967
+  static LoseScreen + #1153, #3967
+  static LoseScreen + #1154, #3967
+  static LoseScreen + #1155, #3967
+  static LoseScreen + #1156, #3967
+  static LoseScreen + #1157, #3967
+  static LoseScreen + #1158, #3967
+  static LoseScreen + #1159, #3967
+
+  ;Linha 29
+  static LoseScreen + #1160, #3967
+  static LoseScreen + #1161, #3967
+  static LoseScreen + #1162, #3967
+  static LoseScreen + #1163, #3967
+  static LoseScreen + #1164, #3967
+  static LoseScreen + #1165, #3967
+  static LoseScreen + #1166, #3967
+  static LoseScreen + #1167, #3967
+  static LoseScreen + #1168, #3967
+  static LoseScreen + #1169, #3967
+  static LoseScreen + #1170, #3967
+  static LoseScreen + #1171, #3967
+  static LoseScreen + #1172, #3967
+  static LoseScreen + #1173, #3967
+  static LoseScreen + #1174, #3967
+  static LoseScreen + #1175, #3967
+  static LoseScreen + #1176, #3967
+  static LoseScreen + #1177, #3967
+  static LoseScreen + #1178, #3967
+  static LoseScreen + #1179, #3967
+  static LoseScreen + #1180, #3967
+  static LoseScreen + #1181, #3967
+  static LoseScreen + #1182, #3967
+  static LoseScreen + #1183, #3967
+  static LoseScreen + #1184, #3967
+  static LoseScreen + #1185, #3967
+  static LoseScreen + #1186, #3967
+  static LoseScreen + #1187, #3967
+  static LoseScreen + #1188, #3967
+  static LoseScreen + #1189, #3967
+  static LoseScreen + #1190, #3967
+  static LoseScreen + #1191, #3967
+  static LoseScreen + #1192, #3967
+  static LoseScreen + #1193, #3967
+  static LoseScreen + #1194, #3967
+  static LoseScreen + #1195, #3967
+  static LoseScreen + #1196, #3967
+  static LoseScreen + #1197, #3967
+  static LoseScreen + #1198, #3967
+  static LoseScreen + #1199, #3967
 
 
 menu : var #1200
