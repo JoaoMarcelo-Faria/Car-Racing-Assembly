@@ -119,10 +119,10 @@ moedas_lvl2: var #1
 static moedas_lvl2 + #0, #17    ;tem 4 moedas no nivel 2
 
 moedas_lvl3: var #1
-static moedas_lvl3 + #0, #19      ;tem 6 moedas no nivel 3
+static moedas_lvl3 + #0, #18      ;tem 6 moedas no nivel 3
 
 moedas_lvl4: var #1
-static moedas_lvl4 + #0, #27
+static moedas_lvl4 + #0, #26
 
 ;Variaveis para a funcao de dar um teletransporte
 str_teleport: string " ESPACO P/ CONFIRMAR O TP      "
@@ -356,7 +356,7 @@ main_inicio:
     call CalculaPos
     
     ; Checa colisão logo após o jogador mover
-    call CheckPlayerPoliceCollision
+    ;call CheckPlayerPoliceCollision
 
     ; --- 3. CONTROLE DE VELOCIDADE DA POLÍCIA ---
     ; A polícia move 1 vez a cada X movimentos do loop principal
@@ -366,9 +366,9 @@ main_inicio:
     jnz SkipPoliceMove
     
     ; Move TODAS as Polícias (IA de Equipe)
-    call UpdatePolicia
+    ;call UpdatePolicia
     ; Checa colisão logo após a polícia mover
-    call CheckPlayerPoliceCollision 
+    ;call CheckPlayerPoliceCollision 
 
 SkipPoliceMove:
     
@@ -439,9 +439,8 @@ delay_sai_entrada:
     pop r0
     rts
     
-; ----------------------
 ; WaitForEnter (poll rapido)
-; Retorna quando ENTER(13) for detectado, ou timeout
+; Retorna quando ENTER(13) ou SPACE(32) forem detectados, ou timeout
 ; Ao detectar, armazena tecla em tecla_atual
 ; ----------------------
 WaitForEnter:
@@ -459,10 +458,6 @@ WaitLoop:
     loadn r2, #13
     cmp r0, r2
     jeq Wait_Store
-    loadn r2, #10
-    cmp r0, r2
-    jeq Wait_Store
-    
     jmp Wait_NoKey
 Wait_Store:
     store tecla_atual, r0
@@ -2987,8 +2982,7 @@ ResetRound_perdeu:
     call round_game
     
 Collision_end:
-    loadn r1, #0
-    store saida_liberada, r1 ; não permite a pessoa seguir com a saída liberada se morreu
+
     pop r7
     pop r6
     pop r5
