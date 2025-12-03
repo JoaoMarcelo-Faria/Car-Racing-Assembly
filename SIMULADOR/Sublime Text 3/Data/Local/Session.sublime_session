@@ -27,6 +27,14 @@
 			},
 			"buffers":
 			[
+				{
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/jogo.asm",
+					"settings":
+					{
+						"buffer_size": 420548,
+						"line_ending": "Windows"
+					}
+				}
 			],
 			"build_system": "Packages/Assembly ICMC/Assembly ICMC.sublime-build",
 			"command_palette":
@@ -170,8 +178,37 @@
 			"groups":
 			[
 				{
+					"selected": 0,
 					"sheets":
 					[
+						{
+							"buffer": 0,
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/jogo.asm",
+							"semi_transient": false,
+							"settings":
+							{
+								"buffer_size": 420548,
+								"regions":
+								{
+								},
+								"selection":
+								[
+									[
+										874,
+										874
+									]
+								],
+								"settings":
+								{
+									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage"
+								},
+								"translation.x": 0.0,
+								"translation.y": 0.0,
+								"zoom_level": 1.0
+							},
+							"stack_index": 0,
+							"type": "text"
+						}
 					]
 				}
 			],

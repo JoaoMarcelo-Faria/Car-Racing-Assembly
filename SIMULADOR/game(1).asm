@@ -41,11 +41,6 @@ str_pts: string "PTS:"
 ; "VIDAS:"
 str_vidas: string "VIDAS:"
 
-
-MsgVenceu: string "VOCE VENCEU!"
-MsgSimas:  string "SIMAS ESTA ORGULHOSO"
-
-
 r8: var #1
 static r8 + #0, #0
 
@@ -68,8 +63,7 @@ static tecla_enter + #0, #255
 posObjeto: var #1
 posCenario: var #1
 
-rand_ptr: var #1
-static rand_ptr + #0, #0
+
 
 ;PONTUAÇÃO
 ; Variavel com a quantidade de pontos
@@ -101,25 +95,25 @@ static saida_liberada + #0, #0
 min_moedas: var #1         ; Mínimo necessário para liberar a saída
 static min_moedas + #0, #0
 
-; Defina aqui o MÍNIMO para passar de cada nível
+; MÍNIMO para passar de cada nível
 min_moedas_lvl1: var #1
 static min_moedas_lvl1 + #0, #3  ; Ex: Precisa de 3 das 12 para passar
 
 min_moedas_lvl2: var #1
-static min_moedas_lvl2 + #0, #5  ; Ex: Precisa de 5 das 13
+static min_moedas_lvl2 + #0, #5  ; Ex: Precisa de 5 das 17
 
 min_moedas_lvl3: var #1
-static min_moedas_lvl3 + #0, #9 ; Ex: Precisa de 9 das 18
+static min_moedas_lvl3 + #0, #9 ; Ex: Precisa de 9 das 19
 
 min_moedas_lvl4: var #1
-static min_moedas_lvl4 + #0, #11 ; Ex: Precisa de 13 das 22
+static min_moedas_lvl4 + #0, #11 ; Ex: Precisa de 13 das 27
 
 ; String para avisar que pode sair
 str_saida: string "   PARA SAIR PRESSIONE ENTER   "
 
 ;Moedas por nivel
 moedas_lvl1: var #1
-static moedas_lvl1 + #0, #12    ;tem 12 moedas no nivel 1
+static moedas_lvl1 + #0, #12    ;tem 5 moedas no nivel 1
 
 moedas_lvl2: var #1
 static moedas_lvl2 + #0, #17    ;tem 4 moedas no nivel 2
@@ -132,7 +126,8 @@ static moedas_lvl4 + #0, #27
 
 ;Variaveis para a funcao de dar um teletransporte
 str_teleport: string " ESPACO P/ CONFIRMAR O TP      "
-; Backup para cancelar o teletransporte
+
+;Variáveis para poder cancelar o teleporte
 teleport_backup_pos: var #1
 teleport_backup_sprite: var #1
 teleport_backup_gap: var #1
@@ -142,6 +137,7 @@ teleport_backup_sprite_ant: var #1
 teleport_backup_gap_ant: var #1
 
 
+
 ;Variaveis para a funcao de matar policial
 str_freeze_lvl1: string "DIGITE 1 PARA MATAR O POLICIAL"
 str_freeze_lvl2: string "DIGITE 1-2 PARA MATAR UM POLICIAL"
@@ -149,14 +145,17 @@ str_freeze_lvl3: string "DIGITE 1-3 PARA MATAR UM POLICIAL"
 str_freeze_lvl4: string "DIGITE 1-4 PARA MATAR UM POLICIAL"
 str_clear: string "                                  "
 
-
+; variavel para Contabilizar os itens
 itens_coletados: var #1
 static itens_coletados + #0, #0
 
-; --- Adicione junto com as outras variáveis ---
+; quantidade de policias ativas
 total_policiasatv: var #1
 static total_policiasatv + #0, #0
+
+;=============================
 ; LADRAO O PERSONAGEM PRINCIPAL
+;=============================
 
 ; Variaveis de movimentacao Ladrao
 ;posicao incial declaração e atribuição  
@@ -172,8 +171,6 @@ static pos_ladrao + #0, #490
 ladraoSprite: var #1
 ladraoGapsPtr : var #1  ;
 ladraoGapsPtr_ant : var #1
-
-
 
 ; POLICIAIS - INIMIGOS
 ; --- BANCO DE DADOS DA POLÍCIA (4 Unidades) ---
@@ -218,10 +215,8 @@ pos_policiaant_w: var #1
 pos_policiaant_s: var #1
 pos_policiaant_d: var #1
 
-
-
 main:
-    call loop_ini
+    call loop_ini          
     call inicializa_var
     
 round_game:
@@ -255,7 +250,6 @@ CarregaLevel4:
     jmp CarregaCenario
     
 CarregaCenario:
-
     ; 1. Copia o Mapa da ROM para a RAM (Buffer)
     call CarregaMapaParaBuffer
     
@@ -267,7 +261,7 @@ CarregaCenario:
     call GetMoedasNivelAtual
     call AtualizaHUD
 
-    call ResetPosicoesPorNivel ; <--- ISSO É OBRIGATÓRIO PARA RESETAR AS POSIÇÕES CORRETAMENTE DOS POLICIAIS E LADRÃO POR LEVEL!
+    call ResetPosicoesPorNivel 
     
     ; ---------------------------------------
     ; DESENHO INICIAL DOS PERSONAGENS
@@ -280,7 +274,6 @@ CarregaCenario:
     call printladrao
     
     ; Desenho Inicial Policiais
-    ;call DesenhaTodasPolicias
     ; Desenha os 4 Policiais (Loop Inicial)
     loadn r3, #0 ; i = 0
     load r4, nivel_atual ; max
@@ -322,29 +315,34 @@ DrawInitPolice:
 
 StartGameLoop:
     loadn r0, #0 ; Contador de Delay
-    loadn r3, #0 ; Contador de Delay
     loadn r2, #0 ; Contador de Velocidade da Polícia
 
 main_inicio:
+            
         call delay
             inc r0
             inc r3
-            loadn r1, #25
+            loadn r1, #15
             mod r1, r0, r1
             jnz main_inicio
+            ; A cada 65 iterações ele decai o HeatMap, que é o controle para a polícia sair de becos
             loadn r1, #5
             mod r1, r3, r1
             jnz Skip_Decay
             call HeatMap_Decay
         Skip_Decay:
-        ; quick input check to react faster to ENTER/SPACE when exit is liberated
+        ; entrada rapida para checar rapido o ENTER quando a saida for liberada
         load r0, saida_liberada
         loadn r1, #1
         cmp r0, r1
-        jne GameLoop_Move
+        jne GameLoop_Move           ;se a saida nao for liberada, começa o jogo normal
         call WaitForEnter
         load r0, tecla_atual
         loadn r1, #13
+        cmp r0, r1
+        jeq VitoriaNivel
+        ; Verifica ENTER (10) - CORREÇÃO PARA WINDOWS
+        loadn r1, #10
         cmp r0, r1
         jeq VitoriaNivel
         load r0, max_pontos
@@ -363,7 +361,7 @@ main_inicio:
     ; --- 3. CONTROLE DE VELOCIDADE DA POLÍCIA ---
     ; A polícia move 1 vez a cada X movimentos do loop principal
     inc r2
-    loadn r1, #3  ; A polícia move metade das vezes (ajuste para dificuldade)
+    loadn r1, #2  ; A polícia move metade das vezes 
     mod r1, r2, r1
     jnz SkipPoliceMove
     
@@ -374,9 +372,11 @@ main_inicio:
 
 SkipPoliceMove:
     
-    jmp main_inicio ; Volta para o loop
-        
+    jmp main_inicio ; Volta para o loop         
+    halt
     
+
+; funçao que imprime o cenario
 printCenario:
   push r0
   push r1
@@ -431,10 +431,7 @@ delay_sai_entrada:
     jnz delay_loop2
     dec r1
     jnz delay_loop1
-    
-    ;load r3, tecla_atual
-    ;store tecla_ant, r3
-    
+        
     pop r4
     pop r3
     pop r2
@@ -444,7 +441,7 @@ delay_sai_entrada:
     
 ; ----------------------
 ; WaitForEnter (poll rapido)
-; Retorna quando ENTER(13) ou SPACE(32) forem detectados, ou timeout
+; Retorna quando ENTER(13) for detectado, ou timeout
 ; Ao detectar, armazena tecla em tecla_atual
 ; ----------------------
 WaitForEnter:
@@ -462,6 +459,10 @@ WaitLoop:
     loadn r2, #13
     cmp r0, r2
     jeq Wait_Store
+    loadn r2, #10
+    cmp r0, r2
+    jeq Wait_Store
+    
     jmp Wait_NoKey
 Wait_Store:
     store tecla_atual, r0
@@ -476,6 +477,7 @@ Wait_Done:
     pop r0
     rts
     
+;imprime o ladrao
 printladrao:
   push r0
   push r1
@@ -556,20 +558,21 @@ apagarladrao:
 
 
 
-  pop R6
-  pop R5
-  pop R4
-  pop R3
-  pop R2
-  pop R1
-  pop R0
+  pop r6
+  pop r5
+  pop r4
+  pop r3
+  pop r2
+  pop r1
+  pop r0
   rts
-
+  
+;funcao que apenas espera com um loop que Decrementa
 just_wait:
     push r0
     push r1
     
-    loadn r0, #63999
+    loadn r0, #63999 ; limite do processador
     loadn r1, #0
     lll:
         dec r0
@@ -581,35 +584,36 @@ just_wait:
     rts
     
 loop_ini:
-    push r0
-    push r1
-    push r2
-    loadn r0, #menu
+    push R0
+    push R1
+    push R2
+    loadn R0, #menu         ;imprime o menu
     call printCenario
     loop_menu_wait:
         call delay 
-        load r2, tecla_atual
-        loadn r1, #'x'
-        cmp r1, r2
+        load R2, tecla_atual
+        loadn R1, #'x'          ;espera o usuario digitar x para ir pra proxima tela
+        cmp R1, R2
         jne loop_menu_wait
-    loadn r1, #255
-    store tecla_atual, r1       ; limpa o teclado na memoria
+    loadn R1, #255
+    store tecla_atual, R1       ; limpa o teclado na memoria
     call WaitKeyRelease
-    loadn r0, #PointsRules
+    loadn R0, #PointsRules      ;imprime o menu de pontos
     call printCenario
     loop_inil:
         call delay 
-        load r2, tecla_atual
-        loadn r1, #'x'
-        cmp r1, r2              ; se digitou x, sai do loop
+        load R2, tecla_atual
+        loadn R1, #'x'
+        cmp R1, R2              ; se digitou x, sai do loop
         jne loop_inil
-    pop r2
-    pop r1
-    pop r0
+    pop R2
+    pop R1
+    pop R0
     rts
     
     
-; Funcao que calcula a posicao (VERSÃO SIMPLIFICADA E CORRIGIDA)
+; Funcao que calcula a posicao do ladrão por meio de uma nova tecla
+; Ou mantém a posição anteriormente pressionada e então imprime o player
 CalculaPos:
     push r0
     push r1
@@ -815,32 +819,27 @@ Movimento_Invalido:
     jmp FimCalculaPos
 
 Movimento_Valido:
-    ; 1) Apaga o ladrão usando POS_ANT e GAPS_ANT (apagar versão antiga)
+    ; Salva tudo
+    ; Apaga o ladrão usando POS_ANT e GAPS_ANT
     call apagarladrao
-
-    ; 2) Atualiza posição e aparência para a nova posição
-    store pos_ladrao, r0
-    store ladraoSprite, r5
-    store ladraoGapsPtr, r6
-
-    ; 3) Atualiza steps
+        
+    store pos_ladrao, r0      
+    store ladraoSprite, r5    
+    store ladraoGapsPtr, r6   
+    
     load r4, steps
     inc r4
     store steps, r4
     
-    ; 4) Desenha o ladrão na posição NOVA (usa os valores atualizados em memória)
+    ; Desenha o ladrão na posição NOVA 
     ; printladrao espera: R0 = sprite ptr, R1 = gaps ptr, R2 = pos
     load r0, ladraoSprite
     load r1, ladraoGapsPtr
     load r2, pos_ladrao
     call printladrao
-
-    ; 5) Agora cheque itens na nova posição
-    ; CheckEatItems pode chamar ExecutaTeletransporte internamente.
-    ; Se ExecutaTeletransporte for chamado e confirmar teleporte (R7==1),
-    ; ele já terá feito apagar/desenhar e possivelmente restaurado/alterado pos_ladrao.
-    ; Portanto, se teleporte ocorreu, NÃO tentamos redesenhar nem apagar de novo.
+    
     call CheckEatItems
+    
 FimCalculaPos:
     loadn r1, #255
     store tecla_atual, r1
@@ -854,8 +853,6 @@ FimCalculaPos:
     pop r0
     rts
 
-
-;MUDANÇA 2 --------
 ;---------------------------------------------------------------------
 ; checkMoveValido
 ; Checa se a posição em R0 é válida para o carrinho 3x2.
@@ -874,7 +871,6 @@ CheckMoveValido:
 
 
     loadn r1, #MapBuffer      ; Endereço base do cenário
-    ;load r2, ladraoGapsPtr    ; Endereço base dos offsets do carrinho
     loadn r3, #6             ; Tamanho do loop (6 tiles)
     loadn r4, #0             ; Incrementador (i = 0)
     
@@ -887,10 +883,10 @@ CheckLoop:
     loadi r5, r5             ; r5 = ladraoGaps[i] (ex: 0, 1, 2, 40, 41, 42)
     add r0, r0, r5           ; r0 = nova_pos + offset
     add r5, r1, r0           ; r5 = &initScre[nova_pos + offset]
-
-
+    loadi r5, r5             ; r5 = ID DO TILE do cenário (ex: 31, 45, 106, etc)
     
-    ; 2. --- PROTEÇÃO DE TELA (A CORREÇÃO DO BUG) ---
+    
+    ;  PROTEÇÃO DE TELA  ---
     ; Se (PosAbsoluta < 0) OU (PosAbsoluta >= 1200), Bloqueia!
     loadn r6, #1199
     cmp r0, r6
@@ -900,11 +896,14 @@ CheckLoop:
     cmp r0, r6
     jle Block_Found_Pop       ; Se <= 0, sai indicando erro (segurança extra)
 
-    ; 3. Verifica Colisão com Cenário (Paredes)
+    
     add r5, r1, r0            ; r5 = Endereço no Buffer (MapBuffer + Pos)
     loadi r5, r5              ; r5 = ID do tile no mapa
     pop r0                    ; Restaura r0 para a base original
     
+    ; Agora R5 tem o ID do tile que precisamos checar
+    ; Chamamos uma sub-rotina para ver se ele é "andável"
+    ; R7 é a flag que IsTileWalkable pode alterar
     call IsTileWalkable     
     
     loadn r6, #0
@@ -930,7 +929,6 @@ CheckLoopEnd:
     pop r1
     pop r0 ; Restaura a nova_pos original (embora já tenhamos feito isso)
     rts
-
 
 ; Sub-rotina de 'checkMoveValido'.
 ; Checa se o TILE ID em R5 é "andável".
@@ -992,10 +990,10 @@ IsTileWalkable:
     cmp r5, r0
     jeq Walkable
     
-    ; ... adicione mais IDs de parede aqui se necessário ...
+    ; ... adicione mais IDs de rua aqui se necessário ...
     
-    ; Se o código chegou aqui, não é nenhuma das paredes listadas.
-    ; O movimento é VÁLIDO, e R7 já está como 1.
+    ; Se o código chegou aqui, não é nenhuma das ruas listadas.
+    ; O movimento é INVÁLIDO, e R7 nao está como 1.
     jmp Exit_Walkable
     
 Walkable:
@@ -1105,11 +1103,11 @@ GetMoedas_Fim:
 ; ---------------------------------------------------------------------
 ; CheckEatItems
 ; Checa se o carrinho está sobre algum item coletável e o "come".
-; Usa: pos_ladrao (novo), ladraoGapsPtr (novo)
+; Usa: pos_ladrao, ladraoGapsPtr 
 ;(SISTEMA DE BÔNUS E DIAMANTE)
 ; ---------------------------------------------------------------------
 ; ---------------------------------------------------------------------
-; CheckEatItems (CORRIGIDA)
+; CheckEatItems 
 ; ---------------------------------------------------------------------
 CheckEatItems:
     push r0 ; &MapBuffer
@@ -1212,6 +1210,7 @@ Comer_Coracao:
     inc r1
     store vidas, r1
     
+    ; 2. Atualiza o HUD imediatamente (opcional, mas recomendado para feedback)
     call AtualizaHUD 
 
     ; 3. LÓGICA DE PERSISTÊNCIA: Apagar o item do mapa ORIGINAL (levelX)
@@ -1272,6 +1271,8 @@ Coracao_Fim_Persistencia:
     jmp Finaliza_Comer
     
 Comer_Diamante:
+    ; SALVA O ESTADO DO LOOP ANTES DE IMPRIMIR
+
     load r1, bonus
     loadn r5, #5       ; Valor do diamante
     mul r5, r5, r1     ; Pontos = Valor * Bonus
@@ -1282,14 +1283,17 @@ Comer_Diamante:
 
 Comer_Congelante:
 
-    load r5, itens_coletados 
-    inc r5
-    store itens_coletados, r5
-    
+    ; Primeiro limpa o item da tela para não pegar de novo
     load r5, r8        
     loadn r7, #31      ; Espaço vazio
     storei r5, r7      
     outchar r7, r6     
+    
+    ;Adiciona aos itens coletados
+    load r5, itens_coletados 
+    inc r5
+    store itens_coletados, r5
+    
     ; SALVA REGISTRADORES CRÍTICOS
     push r0
     push r1
@@ -1299,7 +1303,7 @@ Comer_Congelante:
     
     ; AGORA CHAMA A FUNÇÃO MÁGICA
     call CongelaJogo
-    
+
     ; Restaura os REGISTRADORES
     pop r4
     pop r3
@@ -1309,8 +1313,6 @@ Comer_Congelante:
     jmp next_eat_check ; Continua checando outros itens ou sai
 Comer_Moeda:
     ; SALVA O ESTADO DO LOOP ANTES DE IMPRIMIR
-
-    
     loadn r1, #100
     load r7, pontos
     add r7, r7, r1     ; Pontos += Bonus
@@ -1326,7 +1328,7 @@ Comer_Moeda:
     loadn r4,#50
     loadn r1,#1
     continua_comer:
-        mul r4, r4, r1 ; Aumento = 100 * resto (0,1,2)   
+        mul r4, r4, r1 ; Aumento = 50 * resto (50,100,200)   
         store bonus, r4    
 
 
@@ -1367,11 +1369,9 @@ Finaliza_Comer:
     loadn r1, #84
     loadn r2, #2816
     call ImprimeString
-
-
-    ; Não fazemos call delay nem check de tecla aqui! Isso fica no main.
     
 next_eat_check:
+    ;prepara para o proximo item que Comer
     pop r2
     pop r1
     pop r0
@@ -1392,7 +1392,7 @@ eat_loop_end:
 
 
 ; ---------------------------------------------------------
-; ExecutaTeletransporte (CORRIGIDA: FÍSICA + VISUAL)
+; ExecutaTeletransporte 
 ; Retorna R7: 1 (Confirmou), 0 (Cancelou)
 ; ---------------------------------------------------------
 ExecutaTeletransporte:
@@ -1411,8 +1411,6 @@ ExecutaTeletransporte:
     loadn r2, #2816 ; Amarelo
     call ImprimeString
 
-    load r0, dir_ladrao
-    store teleport_backup_dir, r0 
     ; --- 1. SALVA ESTADO INICIAL (BACKUP) ---
     load r0, pos_ladrao
     store teleport_backup_pos, r0
@@ -1423,13 +1421,13 @@ ExecutaTeletransporte:
     load r0, ladraoGapsPtr
     store teleport_backup_gap, r0
     
-    ; --- 2. SINCRONIZAÇÃO INICIAL ---
-    ; Garante que o apagarladrao vai funcionar na primeira iteração
+    load r0, dir_ladrao
+    store teleport_backup_dir, r0 
+
     load r0, pos_ladrao
     store pos_ant_ladrao, r0
     load r0, ladraoGapsPtr
     store ladraoGapsPtr_ant, r0
-
 
 Loop_Teleport:
     call delay_teleport
@@ -1600,14 +1598,13 @@ Aplica_Tele_Move:
 
     ; 1. Apaga Ladrão na Posição ANTIGA (usando as vars globais atuais)
     ; Como pos_ant_ladrao foi sincronizada no fim do ultimo loop, isso apaga corretamente.
-
     call apagarladrao
     
     ; 2. Atualiza Variáveis Globais
     store pos_ladrao, r6
     store ladraoSprite, r3
     store ladraoGapsPtr, r4
-    store dir_ladrao, r5      ;
+    store dir_ladrao, r5      ; <--- CRUCIAL: Atualiza a direção!
     
     ; 3. Desenha na NOVA posição
     mov r0, r3 ; Sprite
@@ -1681,17 +1678,15 @@ Valida_Tele_Move:
     push r0
     push r2
     
-    ; 1. Limite Superior e Esquerdo (Safety Margin)
+    ; Limites de Tela
     loadn r2, #0
     cmp r6, r2
     jle VTM_Fail
     
-    ; 2. Limite Inferior e Direito (CRÍTICO PARA O ERRO)
-    ; O carro tem tamanho. Se pos > 1150, o corpo vai vazar para > 1200
-    loadn r2, #1150   ; Margem de segurança (1200 - 1 linha - margem)
+    loadn r2, #1150
     cmp r6, r2
     jgr VTM_Fail
-
+    
     ; Paredes (CheckMoveValido)
     ; CheckMoveValido espera: R0=Pos, R2=Gap
     mov r0, r6
@@ -1739,7 +1734,9 @@ dt_fim:
     pop r0
     rts
 
-;Funcao de congelar o jogo para matar o policial
+
+
+;Funcao de congelar o jogo para  o policial
 CongelaJogo:
     push r0
     push r1
@@ -1857,14 +1854,6 @@ FinalizaCongelamento:
     loadn r0, #MapBuffer
     call printCenario   ; Redesenha o mapa limpo e correto
     
-    call apagarladrao
-    
-    load r0, ladraoSprite
-    load r1, ladraoGapsPtr
-    load r2, pos_ladrao
-    
-    call printladrao
-
     ; Retorna o HUD normal
     call AtualizaHUD
 
@@ -1902,21 +1891,25 @@ EliminaPolicialEspecifico:
 
 ;Funcao de vitoria do nivel
 VitoriaNivel:
-    ;Passa para o próximo nível
-    ; Incrementa o nível
+    ; Verifica se a pessoa passou coletando todos os itens
     load r0, max_pontos
     load r1, itens_coletados
     jne continua
+    ;Se sim entra aqui
+    ;Portanto ela receberá como recompensa 1/3 dos pontos que possuí
     load r0, pontos
     loadn r1, #3
     div r1,r0,r1
     add r0,r0,r1
     store pontos, r0
+    ;Incrementa Zerou, para possível platina do jogo
     load r0, Zerou
     inc r0
     store Zerou, r0
     
     continua:
+    ;Passa para o próximo nível
+    ; Incrementa o nível
     load r0, nivel_atual
     inc r0
     store nivel_atual, r0
@@ -1934,6 +1927,7 @@ VitoriaNivel:
     ; Carrega as novas moedas necessárias
     call GetMoedasNivelAtual
     
+
     call just_wait
     ; Sai da função para recarregar o nível
     jmp ProximoNivel
@@ -1941,32 +1935,16 @@ VitoriaNivel:
 VitoriaFinal:
     ; --- IMPRIME TELA DE VITÓRIA ---
     load r0, Zerou
-    loadn r1,#1
+    loadn r1,#4
     jne continue_vitorianivel
-    ; 1. Desenha o Fundo da Vitória
-    loadn r0, #SimasScreen
-    call printCenario
-
-    ; 2. Imprime a Mensagem "VOCÊ VENCEU"
-    loadn r0, #414              ; Posição na tela (Linha ~10, centralizado)
-    loadn r1, #MsgVenceu        ; Carrega o endereço da frase 1
-    loadn r2, #512              ; Cor Verde (512) ou Branco (0) - Ajuste conforme sua tabela
-    call ImprimeString             ; Chama rotina de imprimir string
-
-    ; 3. Imprime a Mensagem "SIMAS ESTA ORGULHOSO"
-    loadn r0, #490              ; Posição na tela (Linha ~12, centralizado)
-    loadn r1, #MsgSimas         ; Carrega o endereço da frase 2
-    loadn r2, #512              ; Mesma cor
-    call ImprimeString
-
-    jmp score
-    
-    
-    continue_vitorianivel:
     loadn R0, #WinScreen
+    jmp continua_nivel
+    continue_vitorianivel:
+    ; --- IMPRIME TELA DE VITÓRIA ---
+    loadn R0, #WinScreen
+    continua_nivel:
     call printCenario
     
-    score:
     ; --- IMPRIME O SCORE ---
     load r0, pontos
     loadn r1, #773 ; Posição ao lado de SCORE
@@ -1978,6 +1956,10 @@ Wait_Win_Input:
     
     ; Opção 1: ENTER -> HALT
     loadn r1, #13
+    cmp r0, r1
+    jeq Acabou
+    
+    loadn r1, #10
     cmp r0, r1
     jeq Acabou
     
@@ -2005,7 +1987,7 @@ ProximoNivel:
 
 
 
-; --- Tenta Mover Horizontal (Direto ou Desvio Vertical) ---
+; --- Tenta Mover Horizontal A POLÍCIA (Direto ou Desvio Vertical) ---
 Policia_Tenta_H:
     push r0
     push r5
@@ -2057,7 +2039,7 @@ PTH_Fim:
     pop r0
     rts
 
-; --- Tenta Mover Vertical (Direto ou Desvio Horizontal) ---
+; --- Tenta Mover Vertical A POLICIA (Direto ou Desvio Horizontal) ---
 Policia_Tenta_V:
     push r0
     push r5
@@ -2112,7 +2094,6 @@ PTV_Fim:
 ; ==========================================================
 ; IA DE EQUIPE (CÉREBRO)
 ; ==========================================================
-
 CalculaPosPolicia:
     push r0
     push r1
@@ -2125,66 +2106,68 @@ CalculaPosPolicia:
     
     load r0, temp_indice
     
-    ; Carrega e Salva Estado Anterior
+    ; Carrega posição atual para variável temporária
     loadn r1, #pos_policia
     add r1, r1, r0
     loadi r6, r1
     store pos_policiaant, r6
     
+    ; Carrega direção atual
     loadn r1, #policia_dir
     add r1, r1, r0
     loadi r2, r1
     store dir_policiaant, r2
     
-    call SelectTarget
+    ; --- SELEÇÃO DE ESTRATÉGIA ---
+    call SelectTarget  ; Define pos_target ou (x_target, y_target)
     
-    loadn r5, #40 
+    loadn r5, #40 ; Largura da tela
+    
+    ; --- AVALIAÇÃO DE DIREÇÕES (A, W, S, D) ---
     
     ; --- ESQUERDA ('a') ---
-Policia_CalculaPos_a: 
     mov r4, r6
     dec r4
-    
-    ; Tenta mover Horizontalmente (com Cornering)
+	
+	; Tenta mover Horizontalmente (com Cornering)
     call Policia_Tenta_H  ; Retorna R4 válido ou ehParede=1
-    
     load r1, ehParede
     loadn r2, #0
     cmp r1, r2
     jne Bloqueia_A
     
-    store pos_policiaant_a, r4 ; Guarda pos real
+    store pos_policiaant_a, r4
+    call Policia_checkCenario ; Checa paredes E outras polícias
+    load r1, ehParede
+    loadn r2, #0
+    cmp r1, r2
+    jne Bloqueia_A
     
-    ; Calcula Custo
-    loadn r5, #40
-    mod r0, r4, r5
-    div r1, r4, r5
-    call calculaDistToTarget
+    mod r0, r4, r5 ; x
+    div r1, r4, r5 ; y
+    call calculaDistToTarget ; Usa x_target/y_target definidos em SelectTarget
     load r7, dist_dir
     call Soma_Custo_HeatMap ; R7 = R7 + Heat(R4)
     store dist_a, r7
     jmp Check_W
-
 Bloqueia_A:
     loadn r7, #30000
     store dist_a, r7
     
     ; --- CIMA ('w') ---
 Check_W:
-    loadn r5, #40
+	loadn r5, #40
     mov r4, r6
     sub r4, r4, r5
     
     call Policia_Tenta_V ; Cornering Vertical
-    
     load r1, ehParede
     loadn r2, #0
     cmp r1, r2
     jne Bloqueia_W
     
-    store pos_policiaant_w, r4
-    
-    loadn r5, #40
+    store pos_policiaant_w, r4      ;mesma funcao que a checagem da esquerda
+
     mod r0, r4, r5
     div r1, r4, r5
     call calculaDistToTarget
@@ -2192,7 +2175,7 @@ Check_W:
     call Soma_Custo_HeatMap ; R7 = R7 + Heat(R4)
     store dist_w, r7
     jmp Check_S
-
+    
 Bloqueia_W:
     loadn r7, #30000
     store dist_w, r7
@@ -2203,21 +2186,21 @@ Check_S:
     mov r4, r6
     add r4, r4, r5
     
-    call Policia_Tenta_V
+    call Policia_Tenta_V ; Tenta usar o gap para com ajuda de cornering
     
     load r1, ehParede
     loadn r2, #0
     cmp r1, r2
     jne Bloqueia_S
     
-    store pos_policiaant_s, r4
+    store pos_policiaant_s, r4 ; adiciona a posição a variável temporária
     
     loadn r5, #40
     mod r0, r4, r5
     div r1, r4, r5
-    call calculaDistToTarget
+    call calculaDistToTarget ; Calcula distância euclidiana
     load r7, dist_dir
-    call Soma_Custo_HeatMap ; R7 = R7 + Heat(R4)
+    call Soma_Custo_HeatMap ; R7 = R7 + Heat(R4) - > Mapa de calor para proteger a policia
     store dist_s, r7
     jmp Check_D
 
@@ -2247,14 +2230,11 @@ Check_D:
     call Soma_Custo_HeatMap ; R7 = R7 + Heat(R4)
     store dist_d, r7
     jmp Decide_Dir
-
 Bloqueia_D:
     loadn r7, #30000
     store dist_d, r7
     
 Decide_Dir:
-    call Aplica_Penalidade_Re_E_Detecta_Beco
-    
     ; Algoritmo Guloso: Escolhe a menor distância calculada
     loadn r0, #'a'
     store dir_policiaant, r0
@@ -2304,15 +2284,12 @@ Aplica_Movimento:
     loadn r2, #pos_policia
     add r2, r2, r0
     storei r2, r1
-    
-    ; --- NOVO: MARCA NO HEATMAP ---
-    ; R1 tem a nova posição linear do policial (pos_policia)
-    
+	
+	;Marca no HeatMap a posição (nova) com uma valor relativamente alto    
     loadn r2, #HeatMap
     add r2, r2, r1      ; Endereço no HeatMap correspondente à posição
     loadn r3, #50       
     storei r2, r3
-    ; ------------------------------
     
     load r1, dir_policiaant
     loadn r2, #policia_dir
@@ -2369,7 +2346,6 @@ Fim_CalculaPosPolicia:
     pop r1
     pop r0
     rts
-
 
 ; ==========================================================
 ; NOVAS FUNÇÕES AUXILIARES (HEATMAP & BECO)
@@ -2552,7 +2528,7 @@ SelectTarget:
 
 Target_Carro0:
 
-    ; === CARRO 0 (BLINKY) ===
+    ; === CARRO 0  ===
     ; Alvo: Posição Exata do Ladrão
     load r1, pos_ladrao
     
@@ -2567,7 +2543,7 @@ Target_Carro0:
 
 Target_Carro1:
 
-    ; === CARRO 1 (PINKY) ===
+    ; === CARRO 1  ===
     ; Alvo: 2 Posições À FRENTE do Ladrão
     
     ; Pega X,Y do ladrão
@@ -2622,7 +2598,7 @@ T1_Save:
     jmp End_SelectTarget
 
 Target_Carro2:
-    ; === CARRO 3 (INKY/BLUE) - ESTRATÉGIA: O ESPELHO ===
+    ; === CARRO 3  - ESTRATÉGIA: O ESPELHO ===
     ; Tática: Cercar o jogador indo para a coordenada X oposta.
     ; Isso força o jogador a mudar de linha ou ser encurralado.
     
@@ -2663,7 +2639,7 @@ T2_Failsafe:
 
 Target_Carro3:
     
-    ; === CARRO 3 (INKY/BLUE) ===
+    ; === CARRO 3  ===
     ; Alvo: Vetor baseado no Carro 0 e Alvo do Carro 1
     ; Fórmula: Target = Pivot + 2 * (Ref - Pivot)
     ; Simplificado: Target = 2*Ref - Pivot
@@ -2715,64 +2691,6 @@ End_SelectTarget:
     pop r0
     rts
 
-
-; Calcula Distância MANHATTAN: |x1 - x2| + |y1 - y2|
-; Entrada: R0,R1 (Candidato) | R2,R3 (Alvo) (ou usa globais)
-; Saída: dist_dir
-; ----------------------------------------------------------
-calcula_MANHATTAN:
-    push r0
-    push r1
-    push r2
-    push r3
-    push r4
-    push r5
-    push r6
-    
-    ; Lógica para definir Alvo (se usa vars globais ou params)
-    load r6, target_eh_xy
-    loadn r5, #1
-    cmp r6, r5
-    jeq Dist_Use_XY_Manhattan
-    
-    ; Se não for XY, converte pos_target linear
-    load r4, pos_target
-    loadn r5, #40
-    mod r2, r4, r5 ; x target
-    div r3, r4, r5 ; y target
-    jmp Calc_Manhattan
-
-Dist_Use_XY_Manhattan:
-    load r2, x_target
-    load r3, y_target
-
-Calc_Manhattan:
-    ; Distância X = Abs(x_candidato - x_alvo)
-    sub r4, r0, r2      
-    loadn r6, #0
-    cmp r4, r6
-    jgr Calc_Diff_Y
-    sub r4, r6, r4      ; Inverte se negativo (0 - x)
-
-Calc_Diff_Y:
-    ; Distância Y = Abs(y_candidato - y_alvo)
-    sub r5, r1, r3
-    cmp r5, r6
-    jgr Final_Sum
-    sub r5, r6, r5
-
-Final_Sum:
-    add r4, r4, r5      ; Soma Total
-    store dist_dir, r4  
-    
-    pop r6
-    pop r5
-    pop r4
-    pop r3
-    pop r2
-    pop r1
-    pop r0
-    rts
 ; ------------------------------------------------
 ; Calcula Distância (Suporta Coordenadas Negativas)
 ; ------------------------------------------------
@@ -2826,54 +2744,53 @@ Dist_Calc_Start:
 
 ; Função genérica para apagar a polícia
 apagarpolicia:
-  push r0
-  push r1
-  push r2
-  push r3
-  push r4
-  push r5
-  push r6
-  push r7
+  push R0
+  push R1
+  push R2
+  push R3
+  push R4
+  push R5
+  push R6
   
-  loadn r0, #MapBuffer
-  load r7, temp_indice ; Qual policial?
+  loadn R0, #MapBuffer
+  load R4, temp_indice ; Guarda qual policia vai ser eliminada
   
   ; Carrega Gaps Antigos do Array
-  loadn r1, #policia_gaps_ant
-  add r1, r1, r7
-  loadi r1, r1
+  loadn R1, #policia_gaps_ant
+  add R1, R1, R4
+  loadi R1, R1
   
   ; Carrega Posição Antiga do Array
-  loadn r2, #pos_ant_policia
-  add r2, r2, r7
-  loadi r2, r2
+  loadn R2, #pos_ant_policia
+  add R2, R2, R4
+  loadi R2, R2
   
-  loadn r3, #6
-  loadn r4, #0
+  loadn R3, #6
+  loadn R4, #0
   
   apagarpoliciaLoop:
-    add r5,r1,r4
-    loadi r5, r5
-    push r2 
-    add r2,r2,r5
-    add r6,r0,r2
-    loadi r6, r6
-    outchar r6, r2
-    pop r2
-    inc r4
-    cmp r4, r3
+    add R5,R1,R4
+    loadi R5, R5
+    push R2 
+    add R2,R2,R5
+    add R6,R0,R2
+    loadi R6, R6
+    outchar R6, R2
+    pop R2
+    inc R4
+    cmp R3, R4
     jne apagarpoliciaLoop
 
-
-  pop r7
-  pop r6
-  pop r5
-  pop r4
-  pop r3
-  pop r2
-  pop r1
-  pop r0
+  pop R6
+  pop R5
+  pop R4
+  pop R3
+  pop R2
+  pop R1
+  pop R0
   rts
+
+
 
 
 
@@ -3008,10 +2925,9 @@ PerdeuVida:
     loadn r1, #0
     cmp r0, r1
     jeq GameOverReal
-
     
     jmp ResetRound_perdeu 
-    
+  
     
 GameOverReal:
     ; Limpa a pilha (pop nos registradores que estavam salvos em CheckPlayerPoliceCollision)
@@ -3042,6 +2958,11 @@ Wait_Lose_Input:
     cmp r0, r1
     jeq Acabou
     
+    ; Opção 1: PRESS ENTER TO QUIT
+    loadn r1, #10 ; Enter
+    cmp r0, r1
+    jeq Acabou
+    
     ; Opção 2: PRESS X TO PLAY AGAIN
     loadn r1, #'x'
     cmp r0, r1
@@ -3050,13 +2971,11 @@ Wait_Lose_Input:
     jmp Wait_Lose_Input
 
 Restart_Game_Full:
-    ; Reinicia o jogo do zero (passando pelo menu novamente)
+    ; Reinicia o jogo do zero - sem passar pelo menu
     call inicializa_var
     jmp round_game
     
 ResetRound_perdeu:
-    loadn r1, #0
-    store saida_liberada, r1
     pop r7
     pop r6
     pop r5
@@ -3065,9 +2984,11 @@ ResetRound_perdeu:
     pop r2
     pop r1
     pop r0
-    jmp round_game
+    call round_game
     
 Collision_end:
+    loadn r1, #0
+    store saida_liberada, r1 ; não permite a pessoa seguir com a saída liberada se morreu
     pop r7
     pop r6
     pop r5
@@ -3080,15 +3001,16 @@ Collision_end:
     
 Acabou:
 halt
+
+
 ; ---------------------------------------------------------------------
 ; ResetRound
 ; Retorna os carros para a posição inicial sem resetar pontos/mapa
 ; ---------------------------------------------------------------------
 ResetRound:
     push r0
-
-    
     call ResetPosicoesPorNivel
+
 
     
     ; Pequeno delay para o jogador perceber que morreu
@@ -3104,7 +3026,7 @@ ResetRound:
     
     pop r0
     rts
-
+    
 ; ---------------------------------------------------------------------
 ; Policia_checkCenario (CORRIGIDA)
 ; Verifica se a posição R4 é válida para a polícia atual.
@@ -3118,12 +3040,7 @@ Policia_checkCenario:
     push r6
     push r7
     
-    ; 1. VERIFICA COLISÃO COM OUTROS CARROS (NOVO!)
-    ;call Check_Colisao_Entre_Policiais
-    ;loadn r1, #1
-    ;cmp r0, r1
-    ;jeq Eh_Parede_Force ; Se bater em outro carro, trata como parede
-    
+
     ; Verifica Paredes
     load r0, pos_policiaant
     mov r1, r0
@@ -3140,10 +3057,13 @@ Policia_checkCenario:
 Use_H_Gaps:
     loadn r5, #policiaGaps_H
 
+;faz a verificação de ruas
 Do_Check_Tiles:
     loadn r1, #MapBuffer
     loadn r2, #6
     loadn r3, #0
+
+;faz a verificação se é parede ou se é rua
 Loop_Wall_Check:
     add r6, r5, r3
     loadi r6, r6 ; offset
@@ -3257,6 +3177,7 @@ EndDrawHearts:
     pop r1
     pop r0
     rts
+
 ; ---------------------------------------------------------------------
 ; ImprimeNumero
 ; Converte um numero em R0 (até 999) para ASCII e imprime na pos R1
@@ -3369,9 +3290,8 @@ ResetPosicoesPorNivel:
     jne ResetPos_Level2
     ; --- LEVEL 1 ---
     loadn r1, #1          
-    store total_policiasatv, r1
+    store total_policiasatv, r1             ; numero de policias ativas
     
-
     ; Ladrão
     loadn r0, #530
     call SetLadraoPos
@@ -3381,8 +3301,6 @@ ResetPosicoesPorNivel:
     loadn r1, #1020
     loadn r7, #0
     call SetPoliciaInit
-    
-
     
     jmp ResetPos_Fim
     
@@ -3398,13 +3316,14 @@ ResetPos_Level2:
     loadn r0, #570
     call SetLadraoPos
     
+    ; determina a posiçao das 4 policias
     loadn r0, #0
-    loadn r1, #1069
+    loadn r1, #1069         ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
     loadn r0, #1
-    loadn r1, #230
+    loadn r1, #230          ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
@@ -3423,18 +3342,19 @@ ResetPos_Level3:
     loadn r0, #250
     call SetLadraoPos
     
-    loadn r0, #0
-    loadn r1, #1009
+    ; determina a posiçao das 3 policias
+    loadn r0, #0        
+    loadn r1, #1009         ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
     loadn r0, #1
-    loadn r1, #1020
+    loadn r1, #1020         ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
     loadn r0, #2
-    loadn r1, #1028
+    loadn r1, #1028         ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
@@ -3449,23 +3369,24 @@ ResetPos_Level4:
     loadn r0, #230
     call SetLadraoPos
     
+    ; determina a posiçao das 4 policias
     loadn r0, #0
-    loadn r1, #220
+    loadn r1, #220      ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
     loadn r0, #1
-    loadn r1, #379
+    loadn r1, #379          ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
     loadn r0, #2
-    loadn r1, #645
+    loadn r1, #645          ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
     loadn r0, #3
-    loadn r1, #660
+    loadn r1, #660          ;posiçao aqui
     loadn r7, #0
     call SetPoliciaInit
     
@@ -3512,7 +3433,6 @@ inicializa_var:
     loadn r0, #3
     store vidas, r0
     
-    
     loadn r0, #0
     store dir_ladrao, r0
     store morte, r0
@@ -3537,7 +3457,6 @@ inicializa_var:
     store ladraoGapsPtr, r0 
     store ladraoGapsPtr_ant, r0
     
-    call HeatMap_Reset
     
 ; --- INICIALIZAÇÃO DAS 4 POLÍCIAS ---    
     pop r4
@@ -3626,9 +3545,7 @@ Loop_update:
     loadn r2, #pos_ant_policia
     add r2, r2, r0
     storei r2, r3            ; pos_policiaant[i] = pos_policia[i]
-    
-    store pos_policiaant, r3 ;
-    
+
     loadn r2, #policia_gaps
     add r2, r2, r0
     loadi r3, r2
@@ -3645,8 +3562,7 @@ Loop_update:
 
 
     call CalculaPosPolicia
-    
-        ; pos
+    ; pos
     load r2, pos_policiaant
     loadn r3, #pos_policia
     add r3, r3, r0
@@ -3663,7 +3579,6 @@ Loop_update:
     loadn r3, #policia_est
     add r3, r3, r0
     storei r3, r2
-    
     
     next_poll:
         inc r0
@@ -3691,8 +3606,10 @@ WaitKeyRelease_Loop:
     pop r1
     pop r0
     rts
-
-
+    
+;========================
+;	Função que reseta o HeatMap para 0 
+;========================
 HeatMap_Reset:
     push r0
     push r1
@@ -3701,7 +3618,6 @@ HeatMap_Reset:
     loadn r0, #HeatMap
     loadn r1, #1200
     loadn r2, #0
-    
 Heat_Clear_Loop:
     storei r0, r2
     inc r0
@@ -3712,7 +3628,7 @@ Heat_Clear_Loop:
     pop r1
     pop r0
     rts
-    
+
 HeatMap_Decay:
     push r0
     push r1
@@ -3722,7 +3638,10 @@ HeatMap_Decay:
     loadn r0, #HeatMap
     loadn r1, #1200
     loadn r3, #0
-    
+ ;========================
+;	Função que gera um decréscimo no HeatMap para\\
+;	\\a polícia optar por tentar um caminho novamente 
+;========================   
 Decay_Loop:
     loadi r2, r0
     cmp r2, r3
@@ -3741,6 +3660,7 @@ Next_Decay:
     pop r1
     pop r0
     rts
+    
     
 level1 : var #1200
   ;Linha 0
@@ -13834,1209 +13754,6 @@ menu : var #1200
   static menu + #1197, #3967
   static menu + #1198, #3967
   static menu + #1199, #3967
-
-
-SimasScreen: var #1200
-static SimasScreen + #0, #32
-static SimasScreen + #1, #32
-static SimasScreen + #2, #32
-static SimasScreen + #3, #32
-static SimasScreen + #4, #32
-static SimasScreen + #5, #32
-static SimasScreen + #6, #32
-static SimasScreen + #7, #94
-static SimasScreen + #8, #94
-static SimasScreen + #9, #32
-static SimasScreen + #10, #32
-static SimasScreen + #11, #32
-static SimasScreen + #12, #32
-static SimasScreen + #13, #32
-static SimasScreen + #14, #32
-static SimasScreen + #15, #32
-static SimasScreen + #16, #32
-static SimasScreen + #17, #32
-static SimasScreen + #18, #32
-static SimasScreen + #19, #32
-static SimasScreen + #20, #32
-static SimasScreen + #21, #32
-static SimasScreen + #22, #32
-static SimasScreen + #23, #32
-static SimasScreen + #24, #32
-static SimasScreen + #25, #32
-static SimasScreen + #26, #32
-static SimasScreen + #27, #32
-static SimasScreen + #28, #32
-static SimasScreen + #29, #32
-static SimasScreen + #30, #32
-static SimasScreen + #31, #32
-static SimasScreen + #32, #32
-static SimasScreen + #33, #32
-static SimasScreen + #34, #32
-static SimasScreen + #35, #32
-static SimasScreen + #36, #32
-static SimasScreen + #37, #32
-static SimasScreen + #38, #32
-static SimasScreen + #39, #32
-static SimasScreen + #40, #32
-static SimasScreen + #41, #32
-static SimasScreen + #42, #32
-static SimasScreen + #43, #32
-static SimasScreen + #44, #32
-static SimasScreen + #45, #32
-static SimasScreen + #46, #32
-static SimasScreen + #47, #94
-static SimasScreen + #48, #94
-static SimasScreen + #49, #94
-static SimasScreen + #50, #32
-static SimasScreen + #51, #32
-static SimasScreen + #52, #32
-static SimasScreen + #53, #32
-static SimasScreen + #54, #32
-static SimasScreen + #55, #32
-static SimasScreen + #56, #32
-static SimasScreen + #57, #32
-static SimasScreen + #58, #32
-static SimasScreen + #59, #32
-static SimasScreen + #60, #32
-static SimasScreen + #61, #32
-static SimasScreen + #62, #32
-static SimasScreen + #63, #32
-static SimasScreen + #64, #32
-static SimasScreen + #65, #32
-static SimasScreen + #66, #32
-static SimasScreen + #67, #32
-static SimasScreen + #68, #32
-static SimasScreen + #69, #32
-static SimasScreen + #70, #32
-static SimasScreen + #71, #32
-static SimasScreen + #72, #32
-static SimasScreen + #73, #32
-static SimasScreen + #74, #32
-static SimasScreen + #75, #32
-static SimasScreen + #76, #32
-static SimasScreen + #77, #32
-static SimasScreen + #78, #32
-static SimasScreen + #79, #32
-static SimasScreen + #80, #32
-static SimasScreen + #81, #32
-static SimasScreen + #82, #32
-static SimasScreen + #83, #32
-static SimasScreen + #84, #32
-static SimasScreen + #85, #32
-static SimasScreen + #86, #32
-static SimasScreen + #87, #94
-static SimasScreen + #88, #94
-static SimasScreen + #89, #32
-static SimasScreen + #90, #32
-static SimasScreen + #91, #32
-static SimasScreen + #92, #32
-static SimasScreen + #93, #32
-static SimasScreen + #94, #32
-static SimasScreen + #95, #32
-static SimasScreen + #96, #32
-static SimasScreen + #97, #32
-static SimasScreen + #98, #32
-static SimasScreen + #99, #32
-static SimasScreen + #100, #32
-static SimasScreen + #101, #32
-static SimasScreen + #102, #32
-static SimasScreen + #103, #32
-static SimasScreen + #104, #32
-static SimasScreen + #105, #32
-static SimasScreen + #106, #32
-static SimasScreen + #107, #32
-static SimasScreen + #108, #32
-static SimasScreen + #109, #32
-static SimasScreen + #110, #32
-static SimasScreen + #111, #32
-static SimasScreen + #112, #32
-static SimasScreen + #113, #32
-static SimasScreen + #114, #32
-static SimasScreen + #115, #32
-static SimasScreen + #116, #32
-static SimasScreen + #117, #32
-static SimasScreen + #118, #32
-static SimasScreen + #119, #32
-static SimasScreen + #120, #32
-static SimasScreen + #121, #32
-static SimasScreen + #122, #32
-static SimasScreen + #123, #32
-static SimasScreen + #124, #32
-static SimasScreen + #125, #32
-static SimasScreen + #126, #32
-static SimasScreen + #127, #94
-static SimasScreen + #128, #94
-static SimasScreen + #129, #32
-static SimasScreen + #130, #32
-static SimasScreen + #131, #32
-static SimasScreen + #132, #32
-static SimasScreen + #133, #32
-static SimasScreen + #134, #32
-static SimasScreen + #135, #32
-static SimasScreen + #136, #32
-static SimasScreen + #137, #32
-static SimasScreen + #138, #32
-static SimasScreen + #139, #32
-static SimasScreen + #140, #32
-static SimasScreen + #141, #32
-static SimasScreen + #142, #32
-static SimasScreen + #143, #32
-static SimasScreen + #144, #32
-static SimasScreen + #145, #32
-static SimasScreen + #146, #32
-static SimasScreen + #147, #32
-static SimasScreen + #148, #32
-static SimasScreen + #149, #32
-static SimasScreen + #150, #32
-static SimasScreen + #151, #32
-static SimasScreen + #152, #32
-static SimasScreen + #153, #32
-static SimasScreen + #154, #32
-static SimasScreen + #155, #32
-static SimasScreen + #156, #32
-static SimasScreen + #157, #32
-static SimasScreen + #158, #32
-static SimasScreen + #159, #32
-static SimasScreen + #160, #32
-static SimasScreen + #161, #32
-static SimasScreen + #162, #32
-static SimasScreen + #163, #32
-static SimasScreen + #164, #32
-static SimasScreen + #165, #32
-static SimasScreen + #166, #32
-static SimasScreen + #167, #94
-static SimasScreen + #168, #94
-static SimasScreen + #169, #94
-static SimasScreen + #170, #32
-static SimasScreen + #171, #32
-static SimasScreen + #172, #32
-static SimasScreen + #173, #32
-static SimasScreen + #174, #32
-static SimasScreen + #175, #32
-static SimasScreen + #176, #32
-static SimasScreen + #177, #32
-static SimasScreen + #178, #32
-static SimasScreen + #179, #32
-static SimasScreen + #180, #32
-static SimasScreen + #181, #32
-static SimasScreen + #182, #32
-static SimasScreen + #183, #32
-static SimasScreen + #184, #32
-static SimasScreen + #185, #32
-static SimasScreen + #186, #32
-static SimasScreen + #187, #32
-static SimasScreen + #188, #32
-static SimasScreen + #189, #32
-static SimasScreen + #190, #32
-static SimasScreen + #191, #32
-static SimasScreen + #192, #32
-static SimasScreen + #193, #32
-static SimasScreen + #194, #32
-static SimasScreen + #195, #32
-static SimasScreen + #196, #32
-static SimasScreen + #197, #32
-static SimasScreen + #198, #32
-static SimasScreen + #199, #32
-static SimasScreen + #200, #32
-static SimasScreen + #201, #32
-static SimasScreen + #202, #32
-static SimasScreen + #203, #32
-static SimasScreen + #204, #32
-static SimasScreen + #205, #32
-static SimasScreen + #206, #32
-static SimasScreen + #207, #94
-static SimasScreen + #208, #94
-static SimasScreen + #209, #94
-static SimasScreen + #210, #32
-static SimasScreen + #211, #32
-static SimasScreen + #212, #32
-static SimasScreen + #213, #32
-static SimasScreen + #214, #32
-static SimasScreen + #215, #32
-static SimasScreen + #216, #32
-static SimasScreen + #217, #32
-static SimasScreen + #218, #32
-static SimasScreen + #219, #32
-static SimasScreen + #220, #32
-static SimasScreen + #221, #32
-static SimasScreen + #222, #32
-static SimasScreen + #223, #32
-static SimasScreen + #224, #32
-static SimasScreen + #225, #32
-static SimasScreen + #226, #32
-static SimasScreen + #227, #32
-static SimasScreen + #228, #32
-static SimasScreen + #229, #32
-static SimasScreen + #230, #32
-static SimasScreen + #231, #32
-static SimasScreen + #232, #32
-static SimasScreen + #233, #32
-static SimasScreen + #234, #32
-static SimasScreen + #235, #32
-static SimasScreen + #236, #32
-static SimasScreen + #237, #32
-static SimasScreen + #238, #32
-static SimasScreen + #239, #32
-static SimasScreen + #240, #32
-static SimasScreen + #241, #32
-static SimasScreen + #242, #32
-static SimasScreen + #243, #32
-static SimasScreen + #244, #32
-static SimasScreen + #245, #32
-static SimasScreen + #246, #32
-static SimasScreen + #247, #94
-static SimasScreen + #248, #94
-static SimasScreen + #249, #94
-static SimasScreen + #250, #32
-static SimasScreen + #251, #32
-static SimasScreen + #252, #32
-static SimasScreen + #253, #32
-static SimasScreen + #254, #32
-static SimasScreen + #255, #32
-static SimasScreen + #256, #32
-static SimasScreen + #257, #32
-static SimasScreen + #258, #32
-static SimasScreen + #259, #32
-static SimasScreen + #260, #32
-static SimasScreen + #261, #32
-static SimasScreen + #262, #32
-static SimasScreen + #263, #32
-static SimasScreen + #264, #32
-static SimasScreen + #265, #32
-static SimasScreen + #266, #32
-static SimasScreen + #267, #32
-static SimasScreen + #268, #32
-static SimasScreen + #269, #32
-static SimasScreen + #270, #32
-static SimasScreen + #271, #32
-static SimasScreen + #272, #32
-static SimasScreen + #273, #32
-static SimasScreen + #274, #32
-static SimasScreen + #275, #32
-static SimasScreen + #276, #32
-static SimasScreen + #277, #32
-static SimasScreen + #278, #32
-static SimasScreen + #279, #32
-static SimasScreen + #280, #32
-static SimasScreen + #281, #32
-static SimasScreen + #282, #32
-static SimasScreen + #283, #32
-static SimasScreen + #284, #32
-static SimasScreen + #285, #32
-static SimasScreen + #286, #32
-static SimasScreen + #287, #94
-static SimasScreen + #288, #94
-static SimasScreen + #289, #94
-static SimasScreen + #290, #32
-static SimasScreen + #291, #32
-static SimasScreen + #292, #32
-static SimasScreen + #293, #32
-static SimasScreen + #294, #32
-static SimasScreen + #295, #32
-static SimasScreen + #296, #32
-static SimasScreen + #297, #32
-static SimasScreen + #298, #32
-static SimasScreen + #299, #32
-static SimasScreen + #300, #32
-static SimasScreen + #301, #32
-static SimasScreen + #302, #32
-static SimasScreen + #303, #32
-static SimasScreen + #304, #32
-static SimasScreen + #305, #32
-static SimasScreen + #306, #32
-static SimasScreen + #307, #32
-static SimasScreen + #308, #32
-static SimasScreen + #309, #32
-static SimasScreen + #310, #32
-static SimasScreen + #311, #32
-static SimasScreen + #312, #32
-static SimasScreen + #313, #32
-static SimasScreen + #314, #32
-static SimasScreen + #315, #32
-static SimasScreen + #316, #32
-static SimasScreen + #317, #32
-static SimasScreen + #318, #32
-static SimasScreen + #319, #32
-static SimasScreen + #320, #32
-static SimasScreen + #321, #32
-static SimasScreen + #322, #32
-static SimasScreen + #323, #32
-static SimasScreen + #324, #32
-static SimasScreen + #325, #32
-static SimasScreen + #326, #32
-static SimasScreen + #327, #94
-static SimasScreen + #328, #94
-static SimasScreen + #329, #94
-static SimasScreen + #330, #32
-static SimasScreen + #331, #32
-static SimasScreen + #332, #32
-static SimasScreen + #333, #32
-static SimasScreen + #334, #32
-static SimasScreen + #335, #32
-static SimasScreen + #336, #32
-static SimasScreen + #337, #32
-static SimasScreen + #338, #32
-static SimasScreen + #339, #32
-static SimasScreen + #340, #32
-static SimasScreen + #341, #32
-static SimasScreen + #342, #32
-static SimasScreen + #343, #32
-static SimasScreen + #344, #32
-static SimasScreen + #345, #32
-static SimasScreen + #346, #32
-static SimasScreen + #347, #32
-static SimasScreen + #348, #32
-static SimasScreen + #349, #32
-static SimasScreen + #350, #32
-static SimasScreen + #351, #32
-static SimasScreen + #352, #32
-static SimasScreen + #353, #32
-static SimasScreen + #354, #32
-static SimasScreen + #355, #32
-static SimasScreen + #356, #32
-static SimasScreen + #357, #32
-static SimasScreen + #358, #32
-static SimasScreen + #359, #32
-static SimasScreen + #360, #32
-static SimasScreen + #361, #32
-static SimasScreen + #362, #32
-static SimasScreen + #363, #32
-static SimasScreen + #364, #32
-static SimasScreen + #365, #32
-static SimasScreen + #366, #32
-static SimasScreen + #367, #94
-static SimasScreen + #368, #94
-static SimasScreen + #369, #94
-static SimasScreen + #370, #32
-static SimasScreen + #371, #32
-static SimasScreen + #372, #32
-static SimasScreen + #373, #32
-static SimasScreen + #374, #94
-static SimasScreen + #375, #94
-static SimasScreen + #376, #94
-static SimasScreen + #377, #94
-static SimasScreen + #378, #94
-static SimasScreen + #379, #94
-static SimasScreen + #380, #32
-static SimasScreen + #381, #94
-static SimasScreen + #382, #94
-static SimasScreen + #383, #94
-static SimasScreen + #384, #94
-static SimasScreen + #385, #94
-static SimasScreen + #386, #94
-static SimasScreen + #387, #32
-static SimasScreen + #388, #32
-static SimasScreen + #389, #32
-static SimasScreen + #390, #32
-static SimasScreen + #391, #32
-static SimasScreen + #392, #32
-static SimasScreen + #393, #32
-static SimasScreen + #394, #32
-static SimasScreen + #395, #32
-static SimasScreen + #396, #32
-static SimasScreen + #397, #32
-static SimasScreen + #398, #32
-static SimasScreen + #399, #32
-static SimasScreen + #400, #32
-static SimasScreen + #401, #32
-static SimasScreen + #402, #32
-static SimasScreen + #403, #32
-static SimasScreen + #404, #32
-static SimasScreen + #405, #32
-static SimasScreen + #406, #32
-static SimasScreen + #407, #94
-static SimasScreen + #408, #94
-static SimasScreen + #409, #94
-static SimasScreen + #410, #32
-static SimasScreen + #411, #94
-static SimasScreen + #412, #94
-static SimasScreen + #413, #94
-static SimasScreen + #414, #94
-static SimasScreen + #415, #94
-static SimasScreen + #416, #94
-static SimasScreen + #417, #94
-static SimasScreen + #418, #94
-static SimasScreen + #419, #32
-static SimasScreen + #420, #32
-static SimasScreen + #421, #94
-static SimasScreen + #422, #94
-static SimasScreen + #423, #94
-static SimasScreen + #424, #94
-static SimasScreen + #425, #94
-static SimasScreen + #426, #94
-static SimasScreen + #427, #94
-static SimasScreen + #428, #32
-static SimasScreen + #429, #32
-static SimasScreen + #430, #32
-static SimasScreen + #431, #32
-static SimasScreen + #432, #32
-static SimasScreen + #433, #32
-static SimasScreen + #434, #32
-static SimasScreen + #435, #32
-static SimasScreen + #436, #32
-static SimasScreen + #437, #32
-static SimasScreen + #438, #32
-static SimasScreen + #439, #32
-static SimasScreen + #440, #32
-static SimasScreen + #441, #32
-static SimasScreen + #442, #32
-static SimasScreen + #443, #32
-static SimasScreen + #444, #32
-static SimasScreen + #445, #32
-static SimasScreen + #446, #32
-static SimasScreen + #447, #94
-static SimasScreen + #448, #94
-static SimasScreen + #449, #94
-static SimasScreen + #450, #32
-static SimasScreen + #451, #94
-static SimasScreen + #452, #94
-static SimasScreen + #453, #94
-static SimasScreen + #454, #94
-static SimasScreen + #455, #94
-static SimasScreen + #456, #94
-static SimasScreen + #457, #94
-static SimasScreen + #458, #94
-static SimasScreen + #459, #32
-static SimasScreen + #460, #32
-static SimasScreen + #461, #94
-static SimasScreen + #462, #94
-static SimasScreen + #463, #94
-static SimasScreen + #464, #94
-static SimasScreen + #465, #94
-static SimasScreen + #466, #94
-static SimasScreen + #467, #94
-static SimasScreen + #468, #94
-static SimasScreen + #469, #32
-static SimasScreen + #470, #32
-static SimasScreen + #471, #32
-static SimasScreen + #472, #32
-static SimasScreen + #473, #32
-static SimasScreen + #474, #32
-static SimasScreen + #475, #32
-static SimasScreen + #476, #32
-static SimasScreen + #477, #32
-static SimasScreen + #478, #32
-static SimasScreen + #479, #32
-static SimasScreen + #480, #32
-static SimasScreen + #481, #32
-static SimasScreen + #482, #32
-static SimasScreen + #483, #32
-static SimasScreen + #484, #32
-static SimasScreen + #485, #32
-static SimasScreen + #486, #32
-static SimasScreen + #487, #94
-static SimasScreen + #488, #94
-static SimasScreen + #489, #94
-static SimasScreen + #490, #32
-static SimasScreen + #491, #94
-static SimasScreen + #492, #94
-static SimasScreen + #493, #94
-static SimasScreen + #494, #94
-static SimasScreen + #495, #94
-static SimasScreen + #496, #94
-static SimasScreen + #497, #94
-static SimasScreen + #498, #94
-static SimasScreen + #499, #32
-static SimasScreen + #500, #32
-static SimasScreen + #501, #94
-static SimasScreen + #502, #94
-static SimasScreen + #503, #94
-static SimasScreen + #504, #94
-static SimasScreen + #505, #94
-static SimasScreen + #506, #94
-static SimasScreen + #507, #94
-static SimasScreen + #508, #94
-static SimasScreen + #509, #32
-static SimasScreen + #510, #32
-static SimasScreen + #511, #32
-static SimasScreen + #512, #32
-static SimasScreen + #513, #32
-static SimasScreen + #514, #32
-static SimasScreen + #515, #32
-static SimasScreen + #516, #32
-static SimasScreen + #517, #32
-static SimasScreen + #518, #32
-static SimasScreen + #519, #32
-static SimasScreen + #520, #32
-static SimasScreen + #521, #32
-static SimasScreen + #522, #32
-static SimasScreen + #523, #32
-static SimasScreen + #524, #32
-static SimasScreen + #525, #32
-static SimasScreen + #526, #32
-static SimasScreen + #527, #94
-static SimasScreen + #528, #94
-static SimasScreen + #529, #32
-static SimasScreen + #530, #32
-static SimasScreen + #531, #32
-static SimasScreen + #532, #32
-static SimasScreen + #533, #32
-static SimasScreen + #534, #32
-static SimasScreen + #535, #32
-static SimasScreen + #536, #32
-static SimasScreen + #537, #32
-static SimasScreen + #538, #32
-static SimasScreen + #539, #32
-static SimasScreen + #540, #32
-static SimasScreen + #541, #32
-static SimasScreen + #542, #94
-static SimasScreen + #543, #94
-static SimasScreen + #544, #94
-static SimasScreen + #545, #32
-static SimasScreen + #546, #32
-static SimasScreen + #547, #94
-static SimasScreen + #548, #94
-static SimasScreen + #549, #32
-static SimasScreen + #550, #32
-static SimasScreen + #551, #32
-static SimasScreen + #552, #32
-static SimasScreen + #553, #32
-static SimasScreen + #554, #32
-static SimasScreen + #555, #32
-static SimasScreen + #556, #32
-static SimasScreen + #557, #32
-static SimasScreen + #558, #32
-static SimasScreen + #559, #32
-static SimasScreen + #560, #32
-static SimasScreen + #561, #32
-static SimasScreen + #562, #32
-static SimasScreen + #563, #32
-static SimasScreen + #564, #32
-static SimasScreen + #565, #32
-static SimasScreen + #566, #32
-static SimasScreen + #567, #94
-static SimasScreen + #568, #94
-static SimasScreen + #569, #32
-static SimasScreen + #570, #32
-static SimasScreen + #571, #94
-static SimasScreen + #572, #32
-static SimasScreen + #573, #32
-static SimasScreen + #574, #32
-static SimasScreen + #575, #32
-static SimasScreen + #576, #94
-static SimasScreen + #577, #94
-static SimasScreen + #578, #32
-static SimasScreen + #579, #32
-static SimasScreen + #580, #32
-static SimasScreen + #581, #32
-static SimasScreen + #582, #94
-static SimasScreen + #583, #94
-static SimasScreen + #584, #94
-static SimasScreen + #585, #32
-static SimasScreen + #586, #32
-static SimasScreen + #587, #94
-static SimasScreen + #588, #32
-static SimasScreen + #589, #32
-static SimasScreen + #590, #32
-static SimasScreen + #591, #32
-static SimasScreen + #592, #32
-static SimasScreen + #593, #32
-static SimasScreen + #594, #32
-static SimasScreen + #595, #32
-static SimasScreen + #596, #32
-static SimasScreen + #597, #32
-static SimasScreen + #598, #32
-static SimasScreen + #599, #32
-static SimasScreen + #600, #32
-static SimasScreen + #601, #32
-static SimasScreen + #602, #32
-static SimasScreen + #603, #32
-static SimasScreen + #604, #32
-static SimasScreen + #605, #32
-static SimasScreen + #606, #32
-static SimasScreen + #607, #94
-static SimasScreen + #608, #94
-static SimasScreen + #609, #94
-static SimasScreen + #610, #32
-static SimasScreen + #611, #32
-static SimasScreen + #612, #32
-static SimasScreen + #613, #32
-static SimasScreen + #614, #94
-static SimasScreen + #615, #94
-static SimasScreen + #616, #94
-static SimasScreen + #617, #94
-static SimasScreen + #618, #94
-static SimasScreen + #619, #94
-static SimasScreen + #620, #94
-static SimasScreen + #621, #94
-static SimasScreen + #622, #94
-static SimasScreen + #623, #94
-static SimasScreen + #624, #94
-static SimasScreen + #625, #94
-static SimasScreen + #626, #94
-static SimasScreen + #627, #94
-static SimasScreen + #628, #32
-static SimasScreen + #629, #32
-static SimasScreen + #630, #32
-static SimasScreen + #631, #32
-static SimasScreen + #632, #32
-static SimasScreen + #633, #32
-static SimasScreen + #634, #32
-static SimasScreen + #635, #32
-static SimasScreen + #636, #32
-static SimasScreen + #637, #32
-static SimasScreen + #638, #32
-static SimasScreen + #639, #32
-static SimasScreen + #640, #32
-static SimasScreen + #641, #32
-static SimasScreen + #642, #32
-static SimasScreen + #643, #32
-static SimasScreen + #644, #32
-static SimasScreen + #645, #32
-static SimasScreen + #646, #32
-static SimasScreen + #647, #32
-static SimasScreen + #648, #94
-static SimasScreen + #649, #94
-static SimasScreen + #650, #32
-static SimasScreen + #651, #32
-static SimasScreen + #652, #94
-static SimasScreen + #653, #94
-static SimasScreen + #654, #94
-static SimasScreen + #655, #94
-static SimasScreen + #656, #94
-static SimasScreen + #657, #94
-static SimasScreen + #658, #94
-static SimasScreen + #659, #94
-static SimasScreen + #660, #94
-static SimasScreen + #661, #94
-static SimasScreen + #662, #94
-static SimasScreen + #663, #94
-static SimasScreen + #664, #94
-static SimasScreen + #665, #94
-static SimasScreen + #666, #94
-static SimasScreen + #667, #94
-static SimasScreen + #668, #32
-static SimasScreen + #669, #32
-static SimasScreen + #670, #32
-static SimasScreen + #671, #32
-static SimasScreen + #672, #32
-static SimasScreen + #673, #32
-static SimasScreen + #674, #32
-static SimasScreen + #675, #32
-static SimasScreen + #676, #32
-static SimasScreen + #677, #32
-static SimasScreen + #678, #32
-static SimasScreen + #679, #32
-static SimasScreen + #680, #32
-static SimasScreen + #681, #32
-static SimasScreen + #682, #32
-static SimasScreen + #683, #32
-static SimasScreen + #684, #32
-static SimasScreen + #685, #32
-static SimasScreen + #686, #32
-static SimasScreen + #687, #32
-static SimasScreen + #688, #94
-static SimasScreen + #689, #94
-static SimasScreen + #690, #32
-static SimasScreen + #691, #32
-static SimasScreen + #692, #94
-static SimasScreen + #693, #94
-static SimasScreen + #694, #94
-static SimasScreen + #695, #94
-static SimasScreen + #696, #94
-static SimasScreen + #697, #94
-static SimasScreen + #698, #94
-static SimasScreen + #699, #94
-static SimasScreen + #700, #94
-static SimasScreen + #701, #94
-static SimasScreen + #702, #94
-static SimasScreen + #703, #94
-static SimasScreen + #704, #94
-static SimasScreen + #705, #94
-static SimasScreen + #706, #94
-static SimasScreen + #707, #94
-static SimasScreen + #708, #32
-static SimasScreen + #709, #32
-static SimasScreen + #710, #32
-static SimasScreen + #711, #32
-static SimasScreen + #712, #32
-static SimasScreen + #713, #32
-static SimasScreen + #714, #32
-static SimasScreen + #715, #32
-static SimasScreen + #716, #32
-static SimasScreen + #717, #32
-static SimasScreen + #718, #32
-static SimasScreen + #719, #32
-static SimasScreen + #720, #32
-static SimasScreen + #721, #32
-static SimasScreen + #722, #32
-static SimasScreen + #723, #32
-static SimasScreen + #724, #32
-static SimasScreen + #725, #32
-static SimasScreen + #726, #32
-static SimasScreen + #727, #32
-static SimasScreen + #728, #94
-static SimasScreen + #729, #32
-static SimasScreen + #730, #32
-static SimasScreen + #731, #32
-static SimasScreen + #732, #32
-static SimasScreen + #733, #94
-static SimasScreen + #734, #94
-static SimasScreen + #735, #94
-static SimasScreen + #736, #94
-static SimasScreen + #737, #94
-static SimasScreen + #738, #94
-static SimasScreen + #739, #94
-static SimasScreen + #740, #94
-static SimasScreen + #741, #94
-static SimasScreen + #742, #94
-static SimasScreen + #743, #94
-static SimasScreen + #744, #94
-static SimasScreen + #745, #94
-static SimasScreen + #746, #94
-static SimasScreen + #747, #94
-static SimasScreen + #748, #32
-static SimasScreen + #749, #32
-static SimasScreen + #750, #32
-static SimasScreen + #751, #32
-static SimasScreen + #752, #32
-static SimasScreen + #753, #32
-static SimasScreen + #754, #32
-static SimasScreen + #755, #32
-static SimasScreen + #756, #32
-static SimasScreen + #757, #32
-static SimasScreen + #758, #32
-static SimasScreen + #759, #32
-static SimasScreen + #760, #32
-static SimasScreen + #761, #32
-static SimasScreen + #762, #32
-static SimasScreen + #763, #32
-static SimasScreen + #764, #32
-static SimasScreen + #765, #32
-static SimasScreen + #766, #32
-static SimasScreen + #767, #32
-static SimasScreen + #768, #94
-static SimasScreen + #769, #94
-static SimasScreen + #770, #32
-static SimasScreen + #771, #32
-static SimasScreen + #772, #32
-static SimasScreen + #773, #94
-static SimasScreen + #774, #94
-static SimasScreen + #775, #94
-static SimasScreen + #776, #94
-static SimasScreen + #777, #94
-static SimasScreen + #778, #94
-static SimasScreen + #779, #94
-static SimasScreen + #780, #94
-static SimasScreen + #781, #94
-static SimasScreen + #782, #94
-static SimasScreen + #783, #94
-static SimasScreen + #784, #94
-static SimasScreen + #785, #94
-static SimasScreen + #786, #94
-static SimasScreen + #787, #32
-static SimasScreen + #788, #32
-static SimasScreen + #789, #32
-static SimasScreen + #790, #32
-static SimasScreen + #791, #32
-static SimasScreen + #792, #32
-static SimasScreen + #793, #32
-static SimasScreen + #794, #32
-static SimasScreen + #795, #32
-static SimasScreen + #796, #32
-static SimasScreen + #797, #32
-static SimasScreen + #798, #32
-static SimasScreen + #799, #32
-static SimasScreen + #800, #32
-static SimasScreen + #801, #32
-static SimasScreen + #802, #32
-static SimasScreen + #803, #32
-static SimasScreen + #804, #32
-static SimasScreen + #805, #32
-static SimasScreen + #806, #32
-static SimasScreen + #807, #32
-static SimasScreen + #808, #94
-static SimasScreen + #809, #94
-static SimasScreen + #810, #32
-static SimasScreen + #811, #32
-static SimasScreen + #812, #32
-static SimasScreen + #813, #94
-static SimasScreen + #814, #94
-static SimasScreen + #815, #94
-static SimasScreen + #816, #94
-static SimasScreen + #817, #94
-static SimasScreen + #818, #94
-static SimasScreen + #819, #94
-static SimasScreen + #820, #94
-static SimasScreen + #821, #94
-static SimasScreen + #822, #94
-static SimasScreen + #823, #94
-static SimasScreen + #824, #32
-static SimasScreen + #825, #32
-static SimasScreen + #826, #94
-static SimasScreen + #827, #32
-static SimasScreen + #828, #32
-static SimasScreen + #829, #32
-static SimasScreen + #830, #32
-static SimasScreen + #831, #32
-static SimasScreen + #832, #32
-static SimasScreen + #833, #32
-static SimasScreen + #834, #32
-static SimasScreen + #835, #32
-static SimasScreen + #836, #32
-static SimasScreen + #837, #32
-static SimasScreen + #838, #32
-static SimasScreen + #839, #32
-static SimasScreen + #840, #32
-static SimasScreen + #841, #32
-static SimasScreen + #842, #32
-static SimasScreen + #843, #32
-static SimasScreen + #844, #32
-static SimasScreen + #845, #32
-static SimasScreen + #846, #32
-static SimasScreen + #847, #32
-static SimasScreen + #848, #94
-static SimasScreen + #849, #32
-static SimasScreen + #850, #32
-static SimasScreen + #851, #32
-static SimasScreen + #852, #32
-static SimasScreen + #853, #32
-static SimasScreen + #854, #94
-static SimasScreen + #855, #32
-static SimasScreen + #856, #32
-static SimasScreen + #857, #32
-static SimasScreen + #858, #32
-static SimasScreen + #859, #94
-static SimasScreen + #860, #94
-static SimasScreen + #861, #94
-static SimasScreen + #862, #32
-static SimasScreen + #863, #32
-static SimasScreen + #864, #32
-static SimasScreen + #865, #32
-static SimasScreen + #866, #94
-static SimasScreen + #867, #32
-static SimasScreen + #868, #32
-static SimasScreen + #869, #32
-static SimasScreen + #870, #32
-static SimasScreen + #871, #32
-static SimasScreen + #872, #32
-static SimasScreen + #873, #32
-static SimasScreen + #874, #32
-static SimasScreen + #875, #32
-static SimasScreen + #876, #32
-static SimasScreen + #877, #32
-static SimasScreen + #878, #32
-static SimasScreen + #879, #32
-static SimasScreen + #880, #32
-static SimasScreen + #881, #32
-static SimasScreen + #882, #32
-static SimasScreen + #883, #32
-static SimasScreen + #884, #32
-static SimasScreen + #885, #32
-static SimasScreen + #886, #32
-static SimasScreen + #887, #32
-static SimasScreen + #888, #94
-static SimasScreen + #889, #32
-static SimasScreen + #890, #32
-static SimasScreen + #891, #32
-static SimasScreen + #892, #32
-static SimasScreen + #893, #32
-static SimasScreen + #894, #94
-static SimasScreen + #895, #32
-static SimasScreen + #896, #32
-static SimasScreen + #897, #32
-static SimasScreen + #898, #32
-static SimasScreen + #899, #32
-static SimasScreen + #900, #94
-static SimasScreen + #901, #32
-static SimasScreen + #902, #32
-static SimasScreen + #903, #32
-static SimasScreen + #904, #32
-static SimasScreen + #905, #94
-static SimasScreen + #906, #94
-static SimasScreen + #907, #32
-static SimasScreen + #908, #32
-static SimasScreen + #909, #32
-static SimasScreen + #910, #32
-static SimasScreen + #911, #32
-static SimasScreen + #912, #32
-static SimasScreen + #913, #32
-static SimasScreen + #914, #32
-static SimasScreen + #915, #32
-static SimasScreen + #916, #32
-static SimasScreen + #917, #32
-static SimasScreen + #918, #32
-static SimasScreen + #919, #32
-static SimasScreen + #920, #32
-static SimasScreen + #921, #32
-static SimasScreen + #922, #32
-static SimasScreen + #923, #32
-static SimasScreen + #924, #32
-static SimasScreen + #925, #32
-static SimasScreen + #926, #32
-static SimasScreen + #927, #32
-static SimasScreen + #928, #94
-static SimasScreen + #929, #32
-static SimasScreen + #930, #32
-static SimasScreen + #931, #32
-static SimasScreen + #932, #32
-static SimasScreen + #933, #32
-static SimasScreen + #934, #94
-static SimasScreen + #935, #94
-static SimasScreen + #936, #32
-static SimasScreen + #937, #94
-static SimasScreen + #938, #94
-static SimasScreen + #939, #94
-static SimasScreen + #940, #94
-static SimasScreen + #941, #94
-static SimasScreen + #942, #94
-static SimasScreen + #943, #94
-static SimasScreen + #944, #94
-static SimasScreen + #945, #94
-static SimasScreen + #946, #94
-static SimasScreen + #947, #32
-static SimasScreen + #948, #32
-static SimasScreen + #949, #32
-static SimasScreen + #950, #32
-static SimasScreen + #951, #32
-static SimasScreen + #952, #32
-static SimasScreen + #953, #32
-static SimasScreen + #954, #32
-static SimasScreen + #955, #32
-static SimasScreen + #956, #32
-static SimasScreen + #957, #32
-static SimasScreen + #958, #32
-static SimasScreen + #959, #32
-static SimasScreen + #960, #32
-static SimasScreen + #961, #32
-static SimasScreen + #962, #32
-static SimasScreen + #963, #32
-static SimasScreen + #964, #32
-static SimasScreen + #965, #32
-static SimasScreen + #966, #32
-static SimasScreen + #967, #32
-static SimasScreen + #968, #94
-static SimasScreen + #969, #32
-static SimasScreen + #970, #32
-static SimasScreen + #971, #32
-static SimasScreen + #972, #32
-static SimasScreen + #973, #32
-static SimasScreen + #974, #94
-static SimasScreen + #975, #94
-static SimasScreen + #976, #94
-static SimasScreen + #977, #94
-static SimasScreen + #978, #94
-static SimasScreen + #979, #94
-static SimasScreen + #980, #94
-static SimasScreen + #981, #94
-static SimasScreen + #982, #94
-static SimasScreen + #983, #94
-static SimasScreen + #984, #94
-static SimasScreen + #985, #94
-static SimasScreen + #986, #94
-static SimasScreen + #987, #32
-static SimasScreen + #988, #32
-static SimasScreen + #989, #32
-static SimasScreen + #990, #32
-static SimasScreen + #991, #32
-static SimasScreen + #992, #32
-static SimasScreen + #993, #32
-static SimasScreen + #994, #32
-static SimasScreen + #995, #32
-static SimasScreen + #996, #32
-static SimasScreen + #997, #32
-static SimasScreen + #998, #32
-static SimasScreen + #999, #32
-static SimasScreen + #1000, #32
-static SimasScreen + #1001, #32
-static SimasScreen + #1002, #32
-static SimasScreen + #1003, #32
-static SimasScreen + #1004, #32
-static SimasScreen + #1005, #32
-static SimasScreen + #1006, #32
-static SimasScreen + #1007, #32
-static SimasScreen + #1008, #94
-static SimasScreen + #1009, #32
-static SimasScreen + #1010, #32
-static SimasScreen + #1011, #32
-static SimasScreen + #1012, #32
-static SimasScreen + #1013, #32
-static SimasScreen + #1014, #32
-static SimasScreen + #1015, #94
-static SimasScreen + #1016, #94
-static SimasScreen + #1017, #94
-static SimasScreen + #1018, #94
-static SimasScreen + #1019, #94
-static SimasScreen + #1020, #94
-static SimasScreen + #1021, #94
-static SimasScreen + #1022, #94
-static SimasScreen + #1023, #94
-static SimasScreen + #1024, #94
-static SimasScreen + #1025, #94
-static SimasScreen + #1026, #94
-static SimasScreen + #1027, #32
-static SimasScreen + #1028, #32
-static SimasScreen + #1029, #32
-static SimasScreen + #1030, #32
-static SimasScreen + #1031, #32
-static SimasScreen + #1032, #32
-static SimasScreen + #1033, #32
-static SimasScreen + #1034, #32
-static SimasScreen + #1035, #32
-static SimasScreen + #1036, #32
-static SimasScreen + #1037, #32
-static SimasScreen + #1038, #32
-static SimasScreen + #1039, #32
-static SimasScreen + #1040, #32
-static SimasScreen + #1041, #32
-static SimasScreen + #1042, #32
-static SimasScreen + #1043, #32
-static SimasScreen + #1044, #32
-static SimasScreen + #1045, #32
-static SimasScreen + #1046, #32
-static SimasScreen + #1047, #32
-static SimasScreen + #1048, #32
-static SimasScreen + #1049, #32
-static SimasScreen + #1050, #32
-static SimasScreen + #1051, #32
-static SimasScreen + #1052, #32
-static SimasScreen + #1053, #32
-static SimasScreen + #1054, #32
-static SimasScreen + #1055, #32
-static SimasScreen + #1056, #94
-static SimasScreen + #1057, #94
-static SimasScreen + #1058, #94
-static SimasScreen + #1059, #94
-static SimasScreen + #1060, #94
-static SimasScreen + #1061, #94
-static SimasScreen + #1062, #94
-static SimasScreen + #1063, #94
-static SimasScreen + #1064, #94
-static SimasScreen + #1065, #94
-static SimasScreen + #1066, #94
-static SimasScreen + #1067, #32
-static SimasScreen + #1068, #32
-static SimasScreen + #1069, #32
-static SimasScreen + #1070, #32
-static SimasScreen + #1071, #32
-static SimasScreen + #1072, #32
-static SimasScreen + #1073, #32
-static SimasScreen + #1074, #32
-static SimasScreen + #1075, #32
-static SimasScreen + #1076, #32
-static SimasScreen + #1077, #32
-static SimasScreen + #1078, #32
-static SimasScreen + #1079, #32
-static SimasScreen + #1080, #32
-static SimasScreen + #1081, #32
-static SimasScreen + #1082, #32
-static SimasScreen + #1083, #32
-static SimasScreen + #1084, #32
-static SimasScreen + #1085, #32
-static SimasScreen + #1086, #32
-static SimasScreen + #1087, #32
-static SimasScreen + #1088, #32
-static SimasScreen + #1089, #32
-static SimasScreen + #1090, #32
-static SimasScreen + #1091, #32
-static SimasScreen + #1092, #32
-static SimasScreen + #1093, #32
-static SimasScreen + #1094, #32
-static SimasScreen + #1095, #32
-static SimasScreen + #1096, #32
-static SimasScreen + #1097, #94
-static SimasScreen + #1098, #94
-static SimasScreen + #1099, #94
-static SimasScreen + #1100, #94
-static SimasScreen + #1101, #94
-static SimasScreen + #1102, #94
-static SimasScreen + #1103, #94
-static SimasScreen + #1104, #94
-static SimasScreen + #1105, #94
-static SimasScreen + #1106, #32
-static SimasScreen + #1107, #32
-static SimasScreen + #1108, #32
-static SimasScreen + #1109, #32
-static SimasScreen + #1110, #32
-static SimasScreen + #1111, #32
-static SimasScreen + #1112, #32
-static SimasScreen + #1113, #32
-static SimasScreen + #1114, #32
-static SimasScreen + #1115, #32
-static SimasScreen + #1116, #32
-static SimasScreen + #1117, #32
-static SimasScreen + #1118, #32
-static SimasScreen + #1119, #32
-static SimasScreen + #1120, #32
-static SimasScreen + #1121, #32
-static SimasScreen + #1122, #32
-static SimasScreen + #1123, #32
-static SimasScreen + #1124, #32
-static SimasScreen + #1125, #32
-static SimasScreen + #1126, #32
-static SimasScreen + #1127, #32
-static SimasScreen + #1128, #32
-static SimasScreen + #1129, #32
-static SimasScreen + #1130, #32
-static SimasScreen + #1131, #32
-static SimasScreen + #1132, #32
-static SimasScreen + #1133, #32
-static SimasScreen + #1134, #32
-static SimasScreen + #1135, #32
-static SimasScreen + #1136, #94
-static SimasScreen + #1137, #94
-static SimasScreen + #1138, #94
-static SimasScreen + #1139, #94
-static SimasScreen + #1140, #94
-static SimasScreen + #1141, #94
-static SimasScreen + #1142, #94
-static SimasScreen + #1143, #94
-static SimasScreen + #1144, #94
-static SimasScreen + #1145, #32
-static SimasScreen + #1146, #32
-static SimasScreen + #1147, #32
-static SimasScreen + #1148, #32
-static SimasScreen + #1149, #32
-static SimasScreen + #1150, #32
-static SimasScreen + #1151, #32
-static SimasScreen + #1152, #32
-static SimasScreen + #1153, #32
-static SimasScreen + #1154, #32
-static SimasScreen + #1155, #32
-static SimasScreen + #1156, #32
-static SimasScreen + #1157, #32
-static SimasScreen + #1158, #32
-static SimasScreen + #1159, #32
-static SimasScreen + #1160, #32
-static SimasScreen + #1161, #32
-static SimasScreen + #1162, #32
-static SimasScreen + #1163, #32
-static SimasScreen + #1164, #32
-static SimasScreen + #1165, #32
-static SimasScreen + #1166, #32
-static SimasScreen + #1167, #32
-static SimasScreen + #1168, #32
-static SimasScreen + #1169, #32
-static SimasScreen + #1170, #32
-static SimasScreen + #1171, #32
-static SimasScreen + #1172, #32
-static SimasScreen + #1173, #32
-static SimasScreen + #1174, #32
-static SimasScreen + #1175, #32
-static SimasScreen + #1176, #32
-static SimasScreen + #1177, #32
-static SimasScreen + #1178, #94
-static SimasScreen + #1179, #94
-static SimasScreen + #1180, #94
-static SimasScreen + #1181, #94
-static SimasScreen + #1182, #94
-static SimasScreen + #1183, #94
-static SimasScreen + #1184, #32
-static SimasScreen + #1185, #32
-static SimasScreen + #1186, #32
-static SimasScreen + #1187, #32
-static SimasScreen + #1188, #32
-static SimasScreen + #1189, #32
-static SimasScreen + #1190, #32
-static SimasScreen + #1191, #32
-static SimasScreen + #1192, #32
-static SimasScreen + #1193, #32
-static SimasScreen + #1194, #32
-static SimasScreen + #1195, #32
-static SimasScreen + #1196, #32
-static SimasScreen + #1197, #32
-static SimasScreen + #1198, #32
-static SimasScreen + #1199, #32
 
 ; numeros aleatorios
 rand: var #31
