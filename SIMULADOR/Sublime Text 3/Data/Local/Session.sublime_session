@@ -36,10 +36,10 @@
 					}
 				},
 				{
-					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game(1).asm",
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game.asm",
 					"settings":
 					{
-						"buffer_size": 382308,
+						"buffer_size": 382139,
 						"line_ending": "Windows"
 					}
 				}
@@ -78,6 +78,7 @@
 			},
 			"file_history":
 			[
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game(1).asm",
 				"/C/Users/Guilherme/Desktop/OArg/TESTES/Create-Screens-in-Assembly-with-python-master/persona/Meu.asm",
 				"/C/Users/Guilherme/Desktop/OArg/Simulador/fbwg.asm",
 				"/C/Users/Guilherme/Desktop/OArg/Simulador/frogger.asm",
@@ -127,7 +128,7 @@
 			],
 			"find":
 			{
-				"height": 27.0
+				"height": 35.0
 			},
 			"find_in_files":
 			{
@@ -141,6 +142,11 @@
 				"case_sensitive": false,
 				"find_history":
 				[
+					"saida_liberada",
+					"#13",
+					"WaitForEnter",
+					"IsTileWalkable",
+					"WaitForEnter",
 					"initTit",
 					"initMap",
 					"initTitleSc",
@@ -186,7 +192,7 @@
 			"groups":
 			[
 				{
-					"selected": 0,
+					"selected": 1,
 					"sheets":
 					[
 						{
@@ -202,8 +208,8 @@
 								"selection":
 								[
 									[
-										692,
-										692
+										8289,
+										8289
 									]
 								],
 								"settings":
@@ -211,19 +217,19 @@
 									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage"
 								},
 								"translation.x": 0.0,
-								"translation.y": 0.0,
+								"translation.y": 6134.0,
 								"zoom_level": 1.0
 							},
-							"stack_index": 0,
+							"stack_index": 1,
 							"type": "text"
 						},
 						{
 							"buffer": 1,
-							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game(1).asm",
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game.asm",
 							"semi_transient": false,
 							"settings":
 							{
-								"buffer_size": 382308,
+								"buffer_size": 382139,
 								"regions":
 								{
 								},
@@ -244,7 +250,7 @@
 								"translation.y": 0.0,
 								"zoom_level": 1.0
 							},
-							"stack_index": 1,
+							"stack_index": 0,
 							"type": "text"
 						}
 					]
@@ -283,13 +289,13 @@
 			"menu_visible": true,
 			"output.exec":
 			{
-				"height": 421.0
+				"height": 317.0
 			},
 			"output.find_results":
 			{
 				"height": 0.0
 			},
-			"position": "0,2,3,-1,-1,-1,-1,720,22,181,678",
+			"position": "0,2,3,-32000,-32000,-1,-1,720,22,181,678",
 			"project": "",
 			"replace":
 			{

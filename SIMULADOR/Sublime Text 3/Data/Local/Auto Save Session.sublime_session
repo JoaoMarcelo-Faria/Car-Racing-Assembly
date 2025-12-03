@@ -16,6 +16,10 @@
 				"selected_items":
 				[
 					[
+						"Wait",
+						"WaitForEnter	abc"
+					],
+					[
 						"digL",
 						"digLetra_Loop"
 					],
@@ -31,7 +35,23 @@
 					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/jogo.asm",
 					"settings":
 					{
-						"buffer_size": 420548,
+						"buffer_size": 382509,
+						"line_ending": "Windows"
+					}
+				},
+				{
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/game_fixed.asm",
+					"settings":
+					{
+						"buffer_size": 253301,
+						"line_ending": "Unix"
+					}
+				},
+				{
+					"file": "/C/Users/Guilherme/Downloads/game(2).asm",
+					"settings":
+					{
+						"buffer_size": 379176,
 						"line_ending": "Windows"
 					}
 				},
@@ -78,6 +98,8 @@
 			},
 			"file_history":
 			[
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/jogo.asm",
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/game.asm",
 				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game(1).asm",
 				"/C/Users/Guilherme/Desktop/OArg/TESTES/Create-Screens-in-Assembly-with-python-master/persona/Meu.asm",
 				"/C/Users/Guilherme/Desktop/OArg/Simulador/fbwg.asm",
@@ -142,6 +164,15 @@
 				"case_sensitive": false,
 				"find_history":
 				[
+					"buffer",
+					"VitoriaFinal",
+					"DELAY",
+					"delay",
+					"VitoriaFinal",
+					"VitoriaNive",
+					"WaitForEnter",
+					"VitoriaFinal:\n    ; --- IMPRIME TELA DE VITÓRIA ---\n    loadn R0, #WinScreen\n    call printCenario\n    \n    ; --- IMPRIME O SCORE ---\n    load r0, pontos\n    loadn r1, #773 ; Posição ao lado de SCORE\n    call ImprimeNumero\n    \nWait_Win_Input:\n    call delay\n    load r0, tecla_atual\n    \n    ; Opção 1: ENTER -> HALT\n    loadn r1, #13\n    cmp r0, r1\n    jeq Acabou\n    \n    ; Opção 2: X -> REINICIAR DO NIVEL 1 (SEM MENU/REGRAS)\n    loadn r1, #'x'\n    cmp r0, r1\n    jeq Restart_Fast\n    \n    jmp Wait_Win_Input\n\nRestart_Fast:\n    ; Reinicializa variáveis\n    call inicializa_var\n    \n    ; Força nível 1\n    loadn r0, #1\n    store nivel_atual, r0\n    \n    ; Pula direto para o carregamento do cenário, ignorando loop_ini\n    jmp round_game\n    \nProximoNivel:    \n    \n    jmp round_game  ; Volta para recarregar o cenário",
+					"Nivel",
 					"saida_liberada",
 					"#13",
 					"WaitForEnter",
@@ -192,7 +223,7 @@
 			"groups":
 			[
 				{
-					"selected": 1,
+					"selected": 0,
 					"sheets":
 					[
 						{
@@ -201,15 +232,15 @@
 							"semi_transient": false,
 							"settings":
 							{
-								"buffer_size": 420548,
+								"buffer_size": 382509,
 								"regions":
 								{
 								},
 								"selection":
 								[
 									[
-										8289,
-										8289
+										43142,
+										43142
 									]
 								],
 								"settings":
@@ -217,14 +248,74 @@
 									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage"
 								},
 								"translation.x": 0.0,
-								"translation.y": 6134.0,
+								"translation.y": 36895.0,
+								"zoom_level": 1.0
+							},
+							"stack_index": 0,
+							"type": "text"
+						},
+						{
+							"buffer": 1,
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/game_fixed.asm",
+							"semi_transient": false,
+							"settings":
+							{
+								"buffer_size": 253301,
+								"regions":
+								{
+								},
+								"selection":
+								[
+									[
+										831,
+										831
+									]
+								],
+								"settings":
+								{
+									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage",
+									"tab_size": 4,
+									"translate_tabs_to_spaces": true
+								},
+								"translation.x": 0.0,
+								"translation.y": 0.0,
+								"zoom_level": 1.0
+							},
+							"stack_index": 3,
+							"type": "text"
+						},
+						{
+							"buffer": 2,
+							"file": "/C/Users/Guilherme/Downloads/game(2).asm",
+							"semi_transient": false,
+							"settings":
+							{
+								"buffer_size": 379176,
+								"regions":
+								{
+								},
+								"selection":
+								[
+									[
+										1468,
+										1468
+									]
+								],
+								"settings":
+								{
+									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage",
+									"tab_size": 4,
+									"translate_tabs_to_spaces": true
+								},
+								"translation.x": 0.0,
+								"translation.y": 966.0,
 								"zoom_level": 1.0
 							},
 							"stack_index": 1,
 							"type": "text"
 						},
 						{
-							"buffer": 1,
+							"buffer": 3,
 							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game.asm",
 							"semi_transient": false,
 							"settings":
@@ -250,7 +341,7 @@
 								"translation.y": 0.0,
 								"zoom_level": 1.0
 							},
-							"stack_index": 0,
+							"stack_index": 2,
 							"type": "text"
 						}
 					]
