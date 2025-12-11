@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./montador "$1" && ./sim "$2" "$3"
