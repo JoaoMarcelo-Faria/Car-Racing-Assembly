@@ -32,6 +32,8 @@ O jogo vai além da movimentação básica, implementando lógicas avançadas de
 
 ## 🎮 Como Jogar
 
+https://www.youtube.com/watch?v=oQJIjUNvQOE
+
 ### Objetivo
 Colete o número mínimo de **Moedas** exigido pelo nível para destravar a saída. Evite as **Viaturas Policiais**. Você tem 3 vidas.
 
@@ -69,6 +71,10 @@ Colete o número mínimo de **Moedas** exigido pelo nível para destravar a saí
 
 Para rodar este jogo, você precisará do **Simulador do Processador ICMC**.
 
+Compilando em Linux:  https://youtu.be/_rIQR3STNqI
+
+Compilando em Windows: https://youtu.be/DsrcvkS58OI
+
 1.  **Baixe o Repositório:**
     ```bash
     git clone [https://github.com/](https://github.com/)[SEU-USUARIO]/[NOME-DO-REPO].git
@@ -97,6 +103,9 @@ Para rodar este jogo, você precisará do **Simulador do Processador ICMC**.
 | :---: |
 | ![Win](visuals/screens/WinScreen.png) |
 
+| Fase Inicial |
+| :---: |
+| ![Menu](visuals/screens/level1.png) |
 ---
 
 ## ✒️ Autores

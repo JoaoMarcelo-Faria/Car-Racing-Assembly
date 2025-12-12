@@ -32,35 +32,43 @@
 			"buffers":
 			[
 				{
-					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/jogo.asm",
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR_LINUX/NovoMontadorLinux/jogo.asm",
 					"settings":
 					{
 						"buffer_size": 382509,
-						"line_ending": "Windows"
-					}
-				},
-				{
-					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/game_fixed.asm",
-					"settings":
-					{
-						"buffer_size": 253301,
 						"line_ending": "Unix"
 					}
 				},
 				{
-					"file": "/C/Users/Guilherme/Downloads/game(2).asm",
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level1.asm",
 					"settings":
 					{
-						"buffer_size": 379176,
-						"line_ending": "Windows"
+						"buffer_size": 35706,
+						"line_ending": "Unix"
 					}
 				},
 				{
-					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game.asm",
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level2.asm",
 					"settings":
 					{
-						"buffer_size": 382139,
-						"line_ending": "Windows"
+						"buffer_size": 35795,
+						"line_ending": "Unix"
+					}
+				},
+				{
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level3.asm",
+					"settings":
+					{
+						"buffer_size": 35792,
+						"line_ending": "Unix"
+					}
+				},
+				{
+					"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level4.asm",
+					"settings":
+					{
+						"buffer_size": 35593,
+						"line_ending": "Unix"
 					}
 				}
 			],
@@ -98,6 +106,14 @@
 			},
 			"file_history":
 			[
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game.asm",
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR_LINUX/NovoMontadorLinux/game.asm",
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/jogo.asm",
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/jogo.asm",
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR_LINUX/Simulador_Linux/game.asm",
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR_LINUX/Simulador_Linux/main.asm",
+				"/C/Users/Guilherme/Downloads/game(2).asm",
+				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/game_fixed.asm",
 				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/jogo.asm",
 				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/game.asm",
 				"/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game(1).asm",
@@ -150,7 +166,7 @@
 			],
 			"find":
 			{
-				"height": 35.0
+				"height": 27.0
 			},
 			"find_in_files":
 			{
@@ -223,12 +239,12 @@
 			"groups":
 			[
 				{
-					"selected": 0,
+					"selected": 1,
 					"sheets":
 					[
 						{
 							"buffer": 0,
-							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/jogo.asm",
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR_LINUX/NovoMontadorLinux/jogo.asm",
 							"semi_transient": false,
 							"settings":
 							{
@@ -239,36 +255,8 @@
 								"selection":
 								[
 									[
-										43142,
-										43142
-									]
-								],
-								"settings":
-								{
-									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage"
-								},
-								"translation.x": 0.0,
-								"translation.y": 36895.0,
-								"zoom_level": 1.0
-							},
-							"stack_index": 0,
-							"type": "text"
-						},
-						{
-							"buffer": 1,
-							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/game_fixed.asm",
-							"semi_transient": false,
-							"settings":
-							{
-								"buffer_size": 253301,
-								"regions":
-								{
-								},
-								"selection":
-								[
-									[
-										831,
-										831
+										114111,
+										78699
 									]
 								],
 								"settings":
@@ -276,6 +264,90 @@
 									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage",
 									"tab_size": 4,
 									"translate_tabs_to_spaces": true
+								},
+								"translation.x": 0.0,
+								"translation.y": 70469.0,
+								"zoom_level": 1.0
+							},
+							"stack_index": 1,
+							"type": "text"
+						},
+						{
+							"buffer": 1,
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level1.asm",
+							"semi_transient": false,
+							"settings":
+							{
+								"buffer_size": 35706,
+								"regions":
+								{
+								},
+								"selection":
+								[
+									[
+										35412,
+										35412
+									]
+								],
+								"settings":
+								{
+									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage"
+								},
+								"translation.x": 0.0,
+								"translation.y": 23938.0,
+								"zoom_level": 1.0
+							},
+							"stack_index": 0,
+							"type": "text"
+						},
+						{
+							"buffer": 2,
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level2.asm",
+							"semi_transient": false,
+							"settings":
+							{
+								"buffer_size": 35795,
+								"regions":
+								{
+								},
+								"selection":
+								[
+									[
+										35502,
+										35502
+									]
+								],
+								"settings":
+								{
+									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage"
+								},
+								"translation.x": -0.0,
+								"translation.y": 23007.0,
+								"zoom_level": 1.0
+							},
+							"stack_index": 2,
+							"type": "text"
+						},
+						{
+							"buffer": 3,
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level3.asm",
+							"semi_transient": false,
+							"settings":
+							{
+								"buffer_size": 35792,
+								"regions":
+								{
+								},
+								"selection":
+								[
+									[
+										1179,
+										1179
+									]
+								],
+								"settings":
+								{
+									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage"
 								},
 								"translation.x": 0.0,
 								"translation.y": 0.0,
@@ -285,63 +357,33 @@
 							"type": "text"
 						},
 						{
-							"buffer": 2,
-							"file": "/C/Users/Guilherme/Downloads/game(2).asm",
+							"buffer": 4,
+							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/Visuals/screens/level4.asm",
 							"semi_transient": false,
 							"settings":
 							{
-								"buffer_size": 379176,
+								"buffer_size": 35593,
 								"regions":
 								{
 								},
 								"selection":
 								[
 									[
-										1468,
-										1468
+										35300,
+										35300
 									]
 								],
 								"settings":
 								{
 									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage",
-									"tab_size": 4,
+									"tab_size": 2,
 									"translate_tabs_to_spaces": true
 								},
 								"translation.x": 0.0,
-								"translation.y": 966.0,
+								"translation.y": 23577.0,
 								"zoom_level": 1.0
 							},
-							"stack_index": 1,
-							"type": "text"
-						},
-						{
-							"buffer": 3,
-							"file": "/C/Users/Guilherme/Desktop/OArg/MEUJOGO/Car-Racing-Assembly/SIMULADOR/game.asm",
-							"semi_transient": false,
-							"settings":
-							{
-								"buffer_size": 382139,
-								"regions":
-								{
-								},
-								"selection":
-								[
-									[
-										840,
-										840
-									]
-								],
-								"settings":
-								{
-									"syntax": "Packages/Assembly ICMC/Assembly ICMC.tmLanguage",
-									"tab_size": 4,
-									"translate_tabs_to_spaces": true
-								},
-								"translation.x": 0.0,
-								"translation.y": 0.0,
-								"zoom_level": 1.0
-							},
-							"stack_index": 2,
+							"stack_index": 4,
 							"type": "text"
 						}
 					]
