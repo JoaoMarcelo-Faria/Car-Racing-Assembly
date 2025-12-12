@@ -97,15 +97,21 @@ Compilando em Windows: https://youtu.be/DsrcvkS58OI
 
 | Menu Inicial |
 | :---: |
-| ![Menu](visuals/screens/menu.png) |
+| ![Menu](Visuals/screens/menu.png) |
 
 | Tela de Vitória |
 | :---: |
-| ![Win](visuals/screens/WinScreen.png) |
+| ![Win](Visuals/screens/WinScreen.png) |
 
 | Fase Inicial |
 | :---: |
-| ![Menu](visuals/screens/level1.png) |
+| ![Menu](Visuals/screens/level1.png) |
+
+
+| Fase Final |
+| :---: |
+| ![Menu](Visuals/screens/level4.png) |
+
 ---
 
 ## ✒️ Autores
