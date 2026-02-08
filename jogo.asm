@@ -219,6 +219,507 @@ pos_policiaant_s: var #1
 pos_policiaant_d: var #1
 
 
+; -----------------------------------------------------------------------------
+; FUNCAO RUN_ASTAR
+; Entrada: R0 (Posição Linear Inimigo - ONDE ESTOU)
+;          R1 (Posição Linear Player - ONDE QUERO IR)
+; Saída:   R2 (Próximo passo imediato para mover o inimigo)
+; -----------------------------------------------------------------------------
+RUN_ASTAR:
+    push r3
+    push r4
+    push r5
+    push r6
+    push r7
+
+    ;preparação do calculo de Manhattan
+    store pos_target, r1
+    loadn r3, #0
+    store target_eh_xy, r3
+
+    ; 1. Limpa a memória do A* (Status e G)
+    call ZERA_ASTAR
+
+    ; 2. Configura o Nó Inicial (Inimigo)
+    loadn r3, #ASTAR_STATUS
+    add r3, r3, r0      ; Endereço Status[Inicio]
+    loadn r4, #1        ; 1 = OPEN
+    storei r3, r4       
+    
+    ; G[Inicio] = 0 (já zerado em ZERA_ASTAR)
+
+    ; --- LOOP PRINCIPAL ---
+ASTAR_LOOP:
+    ; Busca o nó com MENOR F na lista OPEN
+    ; Retorna em r6 o índice do melhor nó. Se r6 = -1, falhou.
+    call FIND_BEST_NODE 
+    
+    loadn r7, #-1
+    cmp r6, r7
+    jeq ASTAR_FAIL      ; Não tem caminho possível!
+
+    ; Verifica se chegamos no PLAYER (Destino)
+    cmp r6, r1
+    jeq FOUND_PATH
+
+    ; --- Fecha o Nó Atual ---
+    loadn r3, #ASTAR_STATUS
+    add r3, r3, r6
+    loadn r4, #2        ; 2 = CLOSED
+    storei r3, r4
+
+    ; --- Expande Vizinhos (Cima, Baixo, Esq, Dir) ---
+    call EXPAND_NEIGHBORS
+    
+    jmp ASTAR_LOOP
+
+FOUND_PATH:
+    ; Reconstrói o caminho de trás para frente para achar o primeiro passo
+    call RECONSTRUCT_PATH
+    ; r2 agora tem o próximo passo.
+    jmp ASTAR_EXIT
+
+ASTAR_FAIL:
+    mov r2, r0          ; Fica parado se não achar caminho
+    
+ASTAR_EXIT:
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    rts
+
+; --- Subrotina Auxiliar: Limpa Memória ---
+ZERA_ASTAR:
+    push r0
+    push r1
+    push r2
+    push r3
+    
+    ; Limpa ASTAR_STATUS (1200 posições)
+    loadn r0, #ASTAR_STATUS
+    loadn r2, #0
+    loadn r1, #1200
+LOOP_CLR_STATUS:
+    storei r0, r2
+    inc r0
+    dec r1
+    jnz LOOP_CLR_STATUS
+    
+    ; Limpa ASTAR_G (1200 posições)
+    loadn r0, #ASTAR_G
+    loadn r2, #0
+    loadn r1, #1200
+LOOP_CLR_G:
+    storei r0, r2
+    inc r0
+    dec r1
+    jnz LOOP_CLR_G
+    
+    ; Limpa ASTAR_PARENT (1200 posições)
+    loadn r0, #ASTAR_PARENT
+    loadn r2, #0
+    loadn r1, #1200
+LOOP_CLR_PARENT:
+    storei r0, r2
+    inc r0
+    dec r1
+    jnz LOOP_CLR_PARENT
+    
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; --- Encontra o nó com menor F (G + H) na lista OPEN ---
+; Saída: r6 (Índice do melhor nó ou -1)
+FIND_BEST_NODE:
+    push r0
+    push r1
+    push r2 ; F Recorde
+    push r3 ; Índice Loop
+    push r4 ; Aux
+    push r5
+    
+    loadn r6, #-1       ; Melhor Index
+    loadn r2, #30000    ; "Infinito"
+    loadn r3, #0        ; Contador 0 a 1199
+
+LOOP_FIND:
+    loadn r4, #1200
+    cmp r3, r4
+    jeq END_FIND
+
+    ; Vê se Status == 1 (OPEN)
+    loadn r4, #ASTAR_STATUS
+    add r4, r4, r3
+    loadi r5, r4        ; CORREÇÃO: usar r5 para não perder r4
+    loadn r4, #1
+    cmp r5, r4          ; CORREÇÃO: comparar r5 com 1
+    jne NEXT_CANDIDATE
+
+    ; Calcula F = G + H
+    ; G:
+    loadn r4, #ASTAR_G
+    add r4, r4, r3
+    loadi r4, r4        ; r4 = G
+    
+    ; --- CÁLCULO DE H (MANHATTAN) ---
+    
+    ; 1. Converter Nó Atual (r3) para X,Y
+    push r4             ; Salva o G (que está em r4) para não perder
+    
+    loadn r7, #40       ; Largura da tela
+    mod r0, r3, r7      ; r0 = X do Candidato (Resto da divisão)
+    div r1, r3, r7      ; r1 = Y do Candidato (divisão inteira)
+    
+    ; 2. Chamar função de Manhattan
+    call calcula_MANHATTAN
+    
+    ; 3. Somar F = G + H
+    load r7, dist_dir   ; Recupera o resultado H da memória
+    pop r4              ; Recupera o G que tinhamos salvo
+    add r0, r4, r7      ; r0 = G + H (Custo Final F)
+
+    ; Compara se F < Recorde (r2)
+    cmp r0, r2          ; O F desse nó é menor que o recorde?
+    jgr NEXT_CANDIDATE  ; Se for maior, ignora
+
+    mov r2, r0          ; Novo Recorde (Menor F)
+    mov r6, r3          ; Salva o índice desse nó como o Melhor
+
+NEXT_CANDIDATE:
+    inc r3
+    jmp LOOP_FIND
+
+END_FIND:
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+
+; --- Reconstrói o Caminho ---
+; Entrada: r6 (Posição do Player/Destino onde chegamos)
+; Saída: r2 (O passo vizinho ao Início)
+RECONSTRUCT_PATH:
+    push r3
+    push r4
+    
+    mov r3, r6          ; r3 é o nó que estamos rastreando (começa no fim)
+    
+LOOP_BACK:
+    ; Pega o PAI de r3
+    loadn r4, #ASTAR_PARENT
+    add r4, r4, r3
+    loadi r4, r4        ; r4 = Pai de r3
+    
+    ; Se o Pai for o INIMIGO (r0 original - Inicio), achamos!
+    ; O nó r3 é o passo que devemos dar.
+    cmp r4, r0
+    jeq END_RECONSTRUCT
+    
+    ; Se chegamos no inicio (bug safety), para
+    cmp r3, r0
+    jeq SAFETY_EXIT
+    
+    mov r3, r4          ; Volta mais um passo (Current = Pai)
+    jmp LOOP_BACK
+
+END_RECONSTRUCT:
+    mov r2, r3          ; r2 recebe r3 (o primeiro passo após o inicio)
+    jmp EXIT_REC
+
+SAFETY_EXIT:
+    mov r2, r0          ; Fica parado
+
+EXIT_REC:
+    pop r4
+    pop r3
+    rts
+
+
+; -----------------------------------------------------------------------------
+; EXPAND_NEIGHBORS 
+; -----------------------------------------------------------------------------
+; Entrada: r6 = Nó atual sendo expandido
+;          r0 = Posição inicial (para RECONSTRUCT_PATH)
+;          r1 = Posição destino
+; Esta função verifica os 4 vizinhos (cima, baixo, esquerda, direita)
+; e adiciona à lista OPEN se forem válidos
+; -----------------------------------------------------------------------------
+EXPAND_NEIGHBORS:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    push r5
+    push r7
+    
+    ; Salva o nó atual
+    mov r7, r6
+    
+    ; Calcula custo G do nó atual
+    loadn r3, #ASTAR_G
+    add r3, r3, r7
+    loadi r3, r3        ; r3 = G[atual]
+    
+    ; --- VIZINHO: CIMA (y - 1) ---
+    loadn r4, #40
+    cmp r7, r4          ; Se y < 1, não tem vizinho acima
+    jel Skip_Up
+    
+    mov r5, r7
+    loadn r4, #40
+    sub r5, r5, r4      ; Vizinho = atual - 40
+    
+    ; Verifica se é válido
+    mov r0, r7          ; nó atual
+    mov r1, r5          ; nó vizinho
+    loadn r2, #1        ; custo = 1
+    add r2, r2, r3      ; novo_G = G_atual + 1
+    call CHECK_AND_ADD_NEIGHBOR
+    
+Skip_Up:
+    
+    ; --- VIZINHO: BAIXO (y + 1) ---
+    loadn r4, #1160     ; 1200 - 40 = última linha
+    cmp r7, r4
+    jeg Skip_Down
+    
+    mov r5, r7
+    loadn r4, #40
+    add r5, r5, r4      ; Vizinho = atual + 40
+    
+    mov r0, r7
+    mov r1, r5
+    loadn r2, #1
+    add r2, r2, r3
+    call CHECK_AND_ADD_NEIGHBOR
+    
+Skip_Down:
+    
+    ; --- VIZINHO: ESQUERDA (x - 1) ---
+    loadn r4, #40
+    mod r4, r7, r4      ; r4 = x atual
+    loadn r5, #0
+    cmp r4, r5          ; Se x == 0, não tem vizinho à esquerda
+    jeq Skip_Left
+    
+    mov r5, r7
+    dec r5              ; Vizinho = atual - 1
+    
+    mov r0, r7
+    mov r1, r5
+    loadn r2, #1
+    add r2, r2, r3
+    call CHECK_AND_ADD_NEIGHBOR
+    
+Skip_Left:
+    
+    ; --- VIZINHO: DIREITA (x + 1) ---
+    loadn r4, #40
+    mod r4, r7, r4      ; r4 = x atual
+    loadn r5, #39
+    cmp r4, r5          ; Se x == 39, não tem vizinho à direita
+    jeq Skip_Right
+    
+    mov r5, r7
+    inc r5              ; Vizinho = atual + 1
+    
+    mov r0, r7
+    mov r1, r5
+    loadn r2, #1
+    add r2, r2, r3
+    call CHECK_AND_ADD_NEIGHBOR
+    
+Skip_Right:
+    
+    pop r7
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+
+; -----------------------------------------------------------------------------
+; CHECK_AND_ADD_NEIGHBOR
+; -----------------------------------------------------------------------------
+; Entrada: r0 = nó atual
+;          r1 = nó vizinho
+;          r2 = novo custo G
+; Verifica se o vizinho é válido (não é parede, não está CLOSED)
+; e adiciona/atualiza na lista OPEN se necessário
+; -----------------------------------------------------------------------------
+CHECK_AND_ADD_NEIGHBOR:
+    push r3
+    push r4
+    push r5
+    push r6
+    
+    ; 1. Verifica se é parede (char '#' = 35 no MapBuffer)
+    loadn r3, #MapBuffer
+    add r3, r3, r1      ; Endereço do vizinho no mapa
+    loadi r3, r3        ; Caractere do mapa
+    
+    ; Remove a cor (AND com 255 para pegar só o char)
+    loadn r4, #255
+    and r3, r3, r4
+    
+    loadn r4, #35       ; '#' = parede
+    cmp r3, r4
+    jeq End_Check       ; É parede, ignora
+    
+    ; 2. Verifica se está CLOSED
+    loadn r3, #ASTAR_STATUS
+    add r3, r3, r1
+    loadi r4, r3        ; Status do vizinho
+    loadn r5, #2        ; 2 = CLOSED
+    cmp r4, r5
+    jeq End_Check       ; Está fechado, ignora
+    
+    ; 3. Verifica se já está OPEN
+    loadn r5, #1        ; 1 = OPEN
+    cmp r4, r5
+    jeq Update_If_Better
+    
+    ; 4. Não está OPEN nem CLOSED, adiciona!
+Add_New:
+    ; Marca como OPEN
+    loadn r4, #1
+    storei r3, r4
+    
+    ; Define G
+    loadn r3, #ASTAR_G
+    add r3, r3, r1
+    storei r3, r2       ; G[vizinho] = novo_G
+    
+    ; Define Parent
+    loadn r3, #ASTAR_PARENT
+    add r3, r3, r1
+    storei r3, r0       ; Parent[vizinho] = atual
+    
+    jmp End_Check
+    
+Update_If_Better:
+    ; Já está OPEN, verifica se o novo caminho é melhor
+    loadn r3, #ASTAR_G
+    add r3, r3, r1
+    loadi r4, r3        ; G antigo
+    
+    cmp r2, r4          ; novo_G < G_antigo?
+    jeg End_Check       ; Não é melhor, ignora
+    
+    ; É melhor! Atualiza
+    storei r3, r2       ; G[vizinho] = novo_G
+    
+    ; Atualiza Parent
+    loadn r3, #ASTAR_PARENT
+    add r3, r3, r1
+    storei r3, r0       ; Parent[vizinho] = atual
+    
+End_Check:
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    rts
+
+; ==========================================================
+; Wrapper INTELIGENTE para movimentar Policia 3x2 com A*
+; ==========================================================
+UpdatePolicia_Smart:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    push r5
+    push r6
+    push r7
+
+    ; --- 0. Identifica qual Policial estamos movendo ---
+    load r7, temp_indice    ; R7 = ID do Policial (0, 1, etc)
+
+    ; Verifica se este policial está morto
+    loadn r3, #morto_policia
+    add r3, r3, r7
+    loadi r3, r3
+    loadn r4, #1
+    cmp r3, r4
+    jeq Skip_Update_Draw    ; Se morto == 1, pula
+
+    ; --- 1. PREPARAÇÃO PARA APAGAR ---
+    ; Lê Posição Atual
+    loadn r0, #pos_policia
+    add r0, r0, r7
+    loadi r1, r0            ; R1 = Posição Atual Linear
+
+    ; Grava em Posição Antiga
+    loadn r2, #pos_ant_policia
+    add r2, r2, r7
+    storei r2, r1
+
+    ; --- 2. APAGA O SPRITE VELHO ---
+    call apagarpolicia
+
+    ; --- 3. CALCULA O MOVIMENTO (A*) ---
+    ; R0 = Inicio (Pos Policial Atual)
+    loadn r0, #pos_policia
+    add r0, r0, r7
+    loadi r0, r0
+    
+    ; R1 = Destino (Player) - USA pos_ladrao DIRETAMENTE
+    load r1, pos_ladrao
+    
+    call RUN_ASTAR
+    ; Retorno: R2 = Nova Posição
+
+    ; Verifica se moveu
+    loadn r3, #pos_policia
+    add r3, r3, r7
+    loadi r4, r3
+    cmp r2, r4
+    jeq Skip_Update_Draw
+
+    ; --- 4. ATUALIZA A POSIÇÃO NA MEMÓRIA ---
+    storei r3, r2
+
+    ; --- 5. DESENHA O NOVO SPRITE ---
+    ; R0 = Sprite Pointer
+    loadn r0, #policia_sprite
+    add r0, r0, r7
+    loadi r0, r0
+
+    ; R1 = Gaps Pointer
+    loadn r1, #policia_gaps
+    add r1, r1, r7
+    loadi r1, r1
+
+    ; R2 já tem a nova posição
+
+    call printladrao
+
+Skip_Update_Draw:
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
 
 main:
     call loop_ini
@@ -356,25 +857,53 @@ main_inicio:
         
     ; --- 2. MOVIMENTAÇÃO DO JOGADOR ---
     call CalculaPos
-    
-    ; Checa colisão logo após o jogador mover
     call CheckPlayerPoliceCollision
 
     ; --- 3. CONTROLE DE VELOCIDADE DA POLÍCIA ---
-    ; A polícia move 1 vez a cada X movimentos do loop principal
-    inc r2
-    loadn r1, #3  ; A polícia move metade das vezes (ajuste para dificuldade)
-    mod r1, r2, r1
-    jnz SkipPoliceMove
+    inc r2              ; Incrementa contador global
     
-    ; Move TODAS as Polícias (IA de Equipe)
-    call UpdatePolicia
-    ; Checa colisão logo após a polícia mover
+    push r0             ; Salva registradores usados na conta
+    push r1
+    
+    loadn r1, #30       ; VELOCIDADE (A cada 10 frames)
+    mod r0, r2, r1      ; R0 = R2 % 10
+    
+    loadn r1, #0
+    cmp r0, r1          ; Se o resto for 0, é hora de mover
+    jne SkipPoliceMove_Pop
+    
+    ; loop para mover os policiais ativos do nivel com A*
+    push r4                     ;contador do loop(id do policial)
+    push r5                     ;limite do loop(fase atual)
+    loadn r4, #0                ;começa com o policial 0
+    load r5, nivel_atual
+
+Loop_Move_Police_Group:
+    cmp r4, r5                  ;se contador == fase o loop acabou
+    jeq Fim_Loop_Police
+
+    ;define qual policia ira mover agora
+    store temp_indice, r4
+
+    ;chama o algoritmo para este policial
+    call UpdatePolicia_Smart
+
+    ;incrementa pro proximo policial
+    inc r4
+    jmp Loop_Move_Police_Group
+
+Fim_Loop_Police:
+    pop r5
+    pop r4
+    
     call CheckPlayerPoliceCollision 
 
+SkipPoliceMove_Pop:
+    pop r1              ; Restaura registradores
+    pop r0
+
 SkipPoliceMove:
-    
-    jmp main_inicio ; Volta para o loop
+    jmp main_inicio
         
     
 printCenario:
@@ -13956,3 +14485,10 @@ ladraoGaps_V : var #6 ; Forma 2x3
   static ladraoGaps_V + #3, #80 
   static ladraoGaps_V + #4, #40
   static ladraoGaps_V + #5, #0
+
+
+; ------ VARIÁVEIS DO A* ------
+; ESTÁ AQUI PARA O COMPILADOR ALOCAR NAS POSIÇÕES VALIDAS 
+ASTAR_G: var #1200
+ASTAR_PARENT: var #1200
+ASTAR_STATUS: var #1200

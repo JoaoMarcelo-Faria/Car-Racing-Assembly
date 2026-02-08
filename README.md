@@ -18,11 +18,7 @@ O jogador controla um ladrão que deve coletar moedas para abrir a saída do ní
 
 O jogo vai além da movimentação básica, implementando lógicas avançadas de Assembly:
 
-* **Inteligência Artificial de Equipe:** As viaturas não apenas seguem o jogador. Baseado no código, cada policial tem uma estratégia (inspirada nos fantasmas do Pac-Man):
-    * *Carro 0:* Perseguição direta (Target = Posição do Jogador).
-    * *Carro 1:* Interceptação (Target = Posição à frente do Jogador).
-    * *Carro 2:* Espelhamento (Cerca o jogador pelo eixo X oposto).
-    * *Carro 3:* Vetorial (Calcula alvo baseado na posição do Carro 0 e Carro 1).
+* **Inteligência Artificial de Equipe:** As viaturas não apenas seguem o jogador. Baseado no código(HeatMap e A* algorithm), cada policial tem uma estratégia analisa matematicamente e logicamente qual o melhor caminho e, a partir disso, evita colisões desnecessárias com obstáculos e com becos sem sáida.
 * **Sistema de Níveis:** 4 mapas distintos (`level1` a `level4`) com dificuldade progressiva e aumento no número de policiais ativos.
 * **Power-ups Complexos:** Implementação de itens que alteram o estado do jogo (congelamento de inimigos e teletransporte).
 * **Colisão Pixel-Perfect:** Verificação de colisão baseada em tiles e bounding box para o sprite do carro (3x2 ou 2x3).
